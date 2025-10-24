@@ -22,9 +22,9 @@ public class EasySuspension : MonoBehaviour {
         view = GetComponent<PhotonView>();
     }
 
-	void Update () {
+	void Update() {
 
-        //if( view.IsMine ) {
+		if (view.IsMine) {
 
 			// work out the stiffness and damper parameters based on the better spring model
 			foreach (WheelCollider wc in GetComponentsInChildren<WheelCollider>())
@@ -45,24 +45,24 @@ public class EasySuspension : MonoBehaviour {
 				if (spring.targetPosition > 0 && setSuspensionDistance)
 					wc.suspensionDistance = wc.sprungMass * Physics.gravity.magnitude / (spring.targetPosition * spring.spring);
 			}
-		//}
-	}
-
-// uncomment OnGUI to observe how parameters change
-
-/*
-	public void OnGUI()
-	{
-		foreach (WheelCollider wc in GetComponentsInChildren<WheelCollider>()) {
-			GUILayout.Label (string.Format("{0} sprung: {1}, k: {2}, d: {3}", wc.name, wc.sprungMass, wc.suspensionSpring.spring, wc.suspensionSpring.damper));
+			//}
 		}
 
-		var rb = GetComponent<Rigidbody> ();
+		// uncomment OnGUI to observe how parameters change
 
-		GUILayout.Label ("Inertia: " + rb.inertiaTensor);
-		GUILayout.Label ("Mass: " + rb.mass);
-		GUILayout.Label ("Center: " + rb.centerOfMass);
+		/*
+			public void OnGUI()
+			{
+				foreach (WheelCollider wc in GetComponentsInChildren<WheelCollider>()) {
+					GUILayout.Label (string.Format("{0} sprung: {1}, k: {2}, d: {3}", wc.name, wc.sprungMass, wc.suspensionSpring.spring, wc.suspensionSpring.damper));
+				}
+
+				var rb = GetComponent<Rigidbody> ();
+
+				GUILayout.Label ("Inertia: " + rb.inertiaTensor);
+				GUILayout.Label ("Mass: " + rb.mass);
+				GUILayout.Label ("Center: " + rb.centerOfMass);
+			}
+		*/
 	}
-*/
-
 }

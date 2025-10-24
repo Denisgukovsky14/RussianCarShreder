@@ -65,7 +65,11 @@ namespace Photon.Pun.Demo.Procedural
             {
                 if (instance == null)
                 {
+                    #if UNITY_6000_0_OR_NEWER
+                    instance = FindFirstObjectByType<WorldGenerator>();
+                    #else
                     instance = FindObjectOfType<WorldGenerator>();
+                    #endif
                 }
 
                 return instance;
@@ -116,14 +120,19 @@ namespace Photon.Pun.Demo.Procedural
         /// </summary>
         private void DestroyWorld()
         {
+            Hashtable clusterPropertyUpdates = new Hashtable();
+
             foreach (GameObject cluster in clusterList.Values)
             {
                 Cluster clusterComponent = cluster.GetComponent<Cluster>();
-                clusterComponent.DestroyCluster();
 
+                clusterPropertyUpdates.Add(clusterComponent.ClusterPropKey, null);  // collect all room property changes in one place, send once
+                
+                clusterComponent.DestroyCluster(removeClusterFromRoomProperties: false);
                 Destroy(cluster);
             }
 
+            PhotonNetwork.CurrentRoom.SetCustomProperties(clusterPropertyUpdates);  // all cluster changes done in one SetProps call
             clusterList.Clear();
         }
 

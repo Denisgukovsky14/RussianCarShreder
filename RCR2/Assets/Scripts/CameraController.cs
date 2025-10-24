@@ -4,10 +4,6 @@ using Photon.Pun;
 
 namespace RootMotion
 {
-
-    /// <summary>
-    /// 3rd person camera controller.
-    /// </summary>
     public class CameraController : MonoBehaviour
     {
 
@@ -21,6 +17,7 @@ namespace RootMotion
             FixedLateUpdate
         }
 
+        [Header("Target")]
         public Transform target; // The target Transform to follow
         public Transform rotationSpace; // If assigned, will use this Transform's rotation as the rotation space instead of the world space. Useful with spherical planets.
         public UpdateMode updateMode = UpdateMode.LateUpdate; // When to update the camera?
@@ -42,8 +39,8 @@ namespace RootMotion
 
         [Header("Distance")]
         public float distance = 10.0f; // The current distance to target
-        public float minDistance = 4; // The minimum distance to target
-        public float maxDistance = 10; // The maximum distance to target
+        public float minDistance = 10; // The minimum distance to target
+        public float maxDistance = 20; // The maximum distance to target
         public float zoomSpeed = 10f; // The speed of interpolating the distance
         public float zoomSensitivity = 1f; // The sensitivity of mouse zoom
 
@@ -67,6 +64,10 @@ namespace RootMotion
         private Quaternion r = Quaternion.identity;
         private Vector3 lastUp;
         private float blockedDistance = 10f, blockedDistanceV;
+        private bool cameraRotationLocked = false;
+
+        public Joystick carJoystick; 
+        private bool isTouchingJoystick = false;
 
         public void SetAngles(Quaternion rotation)
         {
@@ -86,7 +87,7 @@ namespace RootMotion
             if (PhotonNetwork.IsConnected && PhotonNetwork.LocalPlayer.IsLocal)
             {
                 // Установите цель только для локального игрока
-                //target = transform.parent;
+                target = transform.parent;
             }
         }
 
@@ -99,11 +100,14 @@ namespace RootMotion
 
             distanceTarget = distance;
             smoothPosition = transform.position;
+            smoothFollow = false;
 
             cam = GetComponent<Camera>();
+
             int tagger = GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Counter;
-            target = GameObject.FindGameObjectWithTag("P" + tagger ).transform;
-            Debug.Log("Ну что то случилось");
+            //target = GameObject.FindGameObjectWithTag("P" + 1 ).transform;
+
+            
 
             lastUp = rotationSpace != null ? rotationSpace.up : Vector3.up;
         }
@@ -140,13 +144,22 @@ namespace RootMotion
             if (!cam.enabled) return;
 
             // Cursors
-            Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = lockCursor ? false : true;
+            //Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
+            //Cursor.visible = lockCursor ? false : true;
 
+            /// !!!
             // Should we rotate the camera?
-            bool rotate = rotateAlways || (rotateOnLeftButton && Input.GetMouseButton(0)) || (rotateOnRightButton && Input.GetMouseButton(1)) || (rotateOnMiddleButton && Input.GetMouseButton(2));
+            //bool rotate = rotateAlways || (rotateOnLeftButton && Input.GetMouseButton(0)) || (rotateOnRightButton && Input.GetMouseButton(1)) || (rotateOnMiddleButton && Input.GetMouseButton(2));
+            bool rotate = !IsJoystickActive() && Input.GetMouseButton(0);
+
+
+            //if (Input.GetMouseButton(0))
+            //{
+            //    cameraRotationLocked = !cameraRotationLocked;
+            //}
 
             // delta rotation
+
             if (rotate)
             {
                 x += Input.GetAxis("Mouse X") * rotationSensitivity;
@@ -161,6 +174,12 @@ namespace RootMotion
         public void UpdateTransform()
         {
             UpdateTransform(Time.deltaTime);
+        }
+
+        /// !!! 
+        private bool IsJoystickActive()
+        {
+            return carJoystick != null && (Mathf.Abs(carJoystick.Horizontal) > 0.1f || Mathf.Abs(carJoystick.Vertical) > 0.1f);
         }
 
         public void UpdateTransform(float deltaTime)

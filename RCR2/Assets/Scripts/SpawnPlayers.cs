@@ -16,7 +16,7 @@ public class SpawnPlayers : MonoBehaviour
         GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Count()  ;
         player.tag = "P" + GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Counter;
 
-        Vector2 randomPosition = new Vector2(Random.Range(minX, minY), Random.Range(maxX, maxY));
+        Vector3 randomPosition = new Vector3( transform.position.x + Random.Range(minX, minY), transform.position.y + Random.Range(maxX, maxY),  transform.position.z);
         PhotonNetwork.Instantiate(player.name, randomPosition, Quaternion.identity);
         
 

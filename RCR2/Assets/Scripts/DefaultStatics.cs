@@ -8,8 +8,7 @@ public class DefaultStatics : MonoBehaviour
 
     public void Count()
     {
-        Debug.Log("Пиздец");
         Counter = Counter + 1 ;
-        Debug.Log(Counter);
+        //Debug.Log(Counter);
     } 
 }

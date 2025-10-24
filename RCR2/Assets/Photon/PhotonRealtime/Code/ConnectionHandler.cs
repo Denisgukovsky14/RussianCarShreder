@@ -125,6 +125,7 @@ namespace Photon.Realtime
                 {
                     this.Client.Disconnect(DisconnectCause.ApplicationQuit);
                     this.Client.LoadBalancingPeer.StopThread();
+                    this.Client.LoadBalancingPeer.IsSimulationEnabled = false;  // works around a problem with closing the Network Sim Thread in some Unity 6 builds
                 }
 
                 SupportClass.StopAllBackgroundCalls();
@@ -255,7 +256,8 @@ namespace Photon.Realtime
                 // check if the client should disconnect after some seconds in background
                 if (this.backgroundStopwatch.ElapsedMilliseconds > this.KeepAliveInBackground)
                 {
-                    if (this.DisconnectAfterKeepAlive)
+                    // client.IsConnected was checked above but is true even while disconnecting. avoid calling disconnect while disconnecting
+                    if (this.DisconnectAfterKeepAlive && this.Client.State != ClientState.Disconnecting)
                     {
                         this.Client.Disconnect();
                     }

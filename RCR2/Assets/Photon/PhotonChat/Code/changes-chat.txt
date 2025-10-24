@@ -3,6 +3,26 @@ Photon Chat C# Client - Changelog
 www.photonengine.com  -  Join our Discord Server: https://dashboard.photonengine.com/account/profile
 
 
+Version 4.1.8.16 (31. July 2025 - rev8016)
+    No notable changes.
+
+Version 4.1.8.15 (08. May 2025 - rev7931)
+    No notable changes.
+
+Version 4.1.8.14 (11. March 2025 - rev7866)
+    No notable changes.
+
+Version 4.1.8.13 (09. January 2025 - rev7815)
+    No notable changes.
+
+Version 4.1.8.12 (16. December 2024 - rev7801)
+    No notable changes.
+
+Version 4.1.8.11 (17. October 2024 - rev7735)
+    No notable changes.
+
+Version 4.1.8.10 (14. October 2024 - rev7732)
+    No notable changes.
 
 Version 4.1.8.9 (02. September 2024 - rev7660)
     No notable changes.

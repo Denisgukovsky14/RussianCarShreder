@@ -29,7 +29,7 @@ public class ZoneSpawner : MonoBehaviour
         }
         else
         {
-            Debug.Log("Время пошло");
+            //Debug.Log("Время пошло");
         }
     }
 
@@ -52,14 +52,14 @@ public class ZoneSpawner : MonoBehaviour
             {
 
                 // Выводим время существования объекта
-                Debug.Log("Время существования объекта: " + Mathf.Round(finishScript.ExistenceTime) + " секунд");
+                //Debug.Log("Время существования объекта: " + Mathf.Round(finishScript.ExistenceTime) + " секунд");
             }
         }
         else
         {
-            Debug.Log("Объект уничтожен");
+            //Debug.Log("Объект уничтожен");
             timecount += Time.deltaTime;
-            Debug.Log("Время перерыва: " + Mathf.Round(timecount) + " секунд");
+            //Debug.Log("Время перерыва: " + Mathf.Round(timecount) + " секунд");
 
             // Проверяем, не превышено ли максимальное время существования
             if (timecount >= BreakTime)
@@ -72,7 +72,7 @@ public class ZoneSpawner : MonoBehaviour
                 ZoneSpawnTimes += 1;
                 if (ZoneSpawnTimes == 3)
                 {
-                    Debug.Log("Игра окончена");
+                    //Debug.Log("Игра окончена");
                 }
                 else
                 {
@@ -87,7 +87,7 @@ public class ZoneSpawner : MonoBehaviour
         // Создаем экземпляр префаба
 
         int Bones = Random.Range(0, 2);
-        Debug.Log(Bones);
+        //Debug.Log(Bones);
 
         Vector3 CurrentZone = spawningObjects[Bones].transform.position;
 
