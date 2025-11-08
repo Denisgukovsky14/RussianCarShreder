@@ -1,0 +1,319 @@
+﻿using UnityEngine;
+using System.Collections;
+using Photon.Pun;
+using RootMotion;
+using TMPro;
+using UnityEngine.UIElements;
+using Unity.VisualScripting;
+
+public class RearWheelDrive : MonoBehaviour
+{
+    public GameObject canvas;
+    private PlayerCanvas playerCanvas;
+
+    public CarConfig CarConfig;
+    private PhotonView view;
+    private WheelCollider[] wheels;
+    [SerializeField] private FixedJoystick joystick;
+
+    //public TextMeshProUGUI speedmeter;
+    public float maxAngle = 30;
+    public float maxTorque = 300;
+    public float brakeTorque = 5000;
+    public float handbrakeTorque = 10000;
+    public float accelerationMultiplier = 1.5f;
+
+    bool isHandbrakeActive = false;
+
+    private float previousSpeed;
+    private float currentSpeed;
+
+    public GameObject wheelShape;
+    public GameObject Camera;
+    public GameObject Drone;
+
+    private Rigidbody rb;
+
+    public float targetAccelerationTime = 5f;
+    private bool breakActivate = false;
+
+    public float maxSpeed = 230f;
+    public float maxReverseSpeed = 20f;
+    public float accelerationCurve = 1.5f;
+
+    public float GetCurrentSpeed()
+    {
+        return currentSpeed;
+    }
+
+    [PunRPC]
+    public void UpdateWheelPose(Vector3 position, Quaternion rotation)
+    {
+        foreach (WheelCollider wheel in wheels)
+        {
+            Transform shapeTransform = wheel.transform.GetChild(0);
+            shapeTransform.position = position;
+            shapeTransform.rotation = rotation;
+        }
+    }
+
+    private void CreateCanvasForPlayer()
+    {
+        if (canvas == null)
+        {
+            Debug.LogError("Canvas Prefab не назначен!");
+            return;
+        }
+
+        // Создаем канвас как дочерний объект этой машины
+        GameObject canvasObject = Instantiate(canvas, transform);
+
+        // Настраиваем позицию (если нужно)
+        canvasObject.transform.localPosition = Vector3.zero;
+        canvasObject.transform.localRotation = Quaternion.identity;
+
+        playerCanvas = canvasObject.GetComponent<PlayerCanvas>();
+
+        if (playerCanvas != null)
+        {
+            playerCanvas.SetupForPlayer(this);
+            Debug.Log("Canvas создан как дочерний объект!");
+        }
+        else
+        {
+            Debug.LogError("PlayerCanvas компонент не найден!");
+        }
+    }
+
+    public void Start()
+    {
+        rb = GetComponentInParent<Rigidbody>();
+        previousSpeed = rb.linearVelocity.magnitude;
+        view = GetComponent<PhotonView>();
+
+        if (CarConfig != null)
+        {
+            maxAngle = CarConfig.maxAngle;
+            maxTorque = CarConfig.maxTorque;
+            brakeTorque = CarConfig.brakeTorque;
+            handbrakeTorque = CarConfig.handbrakeTorque;
+            accelerationMultiplier = CarConfig.accelerationMultiplier;
+            targetAccelerationTime = CarConfig.targetAccelerationTime;
+            maxSpeed = CarConfig.maxSpeed;
+            maxReverseSpeed = CarConfig.maxReverseSpeed;
+            accelerationCurve = CarConfig.accelerationCurve;
+
+            if (CarConfig.wheelShape != null)
+            {
+                wheelShape = CarConfig.wheelShape;
+            }
+        }
+
+        //if (view.IsMine)
+        //{
+            Debug.Log("AGA");
+            CreateCanvasForPlayer();
+            wheels = GetComponentsInChildren<WheelCollider>();
+
+            for (int i = 0; i < wheels.Length; ++i)
+            {
+                var wheel = wheels[i];
+
+                if (wheelShape != null)
+                {
+                    Vector3 wheelPosition;
+                    Quaternion wheelRotation;
+                    wheel.GetWorldPose(out wheelPosition, out wheelRotation);
+
+                    var ws = GameObject.Instantiate(wheelShape);
+
+                    ws.transform.parent = wheel.transform;
+                    ws.transform.position = wheelPosition;
+                    ws.transform.rotation = wheelRotation;
+                    ws.transform.localScale = new Vector3(100f, 100f, 100f);
+
+                    if (((i + 1) % 2) == 0)
+                    {
+                        ws.transform.localScale = new Vector3(ws.transform.localScale.x * -1, ws.transform.localScale.y, ws.transform.localScale.z);
+                    }
+                }
+            }
+        //}
+    }
+
+    public void FixedUpdate()
+    {
+        if (view.IsMine)
+        {
+            //speedmeter.text = "Speed: " + Mathf.Round(currentSpeed);
+
+            float angle = 0f;
+            float torque = 0f;
+
+#if UNITY_IOS || UNITY_ANDROID
+            if (joystick)
+            {
+                angle = maxAngle * joystick.Horizontal;
+                torque = maxTorque * joystick.Vertical;
+            }
+#else
+            angle = maxAngle * (Input.GetAxis("Horizontal") + joystick.Horizontal);
+            torque = maxTorque * (Input.GetAxis("Vertical") + joystick.Vertical);
+#endif
+
+            currentSpeed = rb.linearVelocity.magnitude * 3.6f;
+            previousSpeed = currentSpeed;
+
+            if (!breakActivate)
+            {
+                isHandbrakeActive = Input.GetKey(KeyCode.Space);
+            }
+
+            // Расчет ускорения с учетом кривой
+            float speedRatio = Mathf.Abs(currentSpeed) / maxSpeed;
+            float currentAccelerationMultiplier = accelerationMultiplier * (1f - Mathf.Pow(speedRatio, accelerationCurve));
+
+            // Применяем мультипликатор ускорения
+            float finalTorque = torque * currentAccelerationMultiplier;
+
+            // Ограничение скорости вперед
+            if (currentSpeed > maxSpeed && finalTorque > 0)
+            {
+                finalTorque = 0;
+            }
+
+            // Ограничение скорости назад
+            float forwardVelocity = Vector3.Dot(rb.linearVelocity, transform.forward);
+            if (forwardVelocity < -maxReverseSpeed / 4.0f && finalTorque < 0)
+            {
+                finalTorque = 0;
+            }
+
+            // Логика торможения при смене направления
+            if (torque > 0 && forwardVelocity < -1f)
+            {
+                // Если едем назад и хотим вперед - тормозим
+                foreach (WheelCollider wheel in wheels)
+                {
+                    wheel.brakeTorque = brakeTorque;
+                }
+                finalTorque = 0;
+            }
+            else if (torque < 0 && forwardVelocity > 1f)
+            {
+                // Если едем вперед и хотим назад - тормозим
+                foreach (WheelCollider wheel in wheels)
+                {
+                    wheel.brakeTorque = brakeTorque;
+                }
+                finalTorque = 0;
+            }
+            else
+            {
+                // Снимаем тормоза если не нужно тормозить
+                foreach (WheelCollider wheel in wheels)
+                {
+                    wheel.brakeTorque = 0;
+                }
+            }
+
+            // Применение ручного тормоза
+            if (isHandbrakeActive)
+            {
+                foreach (WheelCollider wheel in wheels)
+                {
+                    if (wheel.transform.localPosition.z < 0) // Задние колеса
+                    {
+                        wheel.brakeTorque = handbrakeTorque;
+                    }
+                    wheel.motorTorque = 0;
+                }
+            }
+            else
+            {
+                foreach (WheelCollider wheel in wheels)
+                {
+                    if (wheel.transform.localPosition.z < 0) // Задние колеса
+                    {
+                        wheel.motorTorque = finalTorque;
+                    }
+
+                    if (wheel.transform.localPosition.z > 0) // Передние колеса
+                    {
+                        wheel.steerAngle = angle;
+                    }
+
+                    // Обновление визуальных колес
+                    //if (wheelShape)
+                    //{
+                    //    Quaternion q;
+                    //    Vector3 p;
+                    //    wheel.GetWorldPose(out p, out q);
+
+                    //    Transform shapeTransform = wheel.transform.GetChild(0);
+                    //    shapeTransform.position = p;
+                    //    shapeTransform.rotation = q;
+                    //}
+                }
+            }
+
+            bool LetsDeath = Input.GetKey(KeyCode.V);
+            if (LetsDeath)
+            {
+                Destroy(gameObject);
+            }
+        }
+        foreach (WheelCollider wheel in wheels)
+        {
+            if (wheelShape)
+            {
+                Quaternion q;
+                Vector3 p;
+                wheel.GetWorldPose(out p, out q);
+
+                Transform shapeTransform = wheel.transform.GetChild(0);
+                shapeTransform.position = p;
+                shapeTransform.rotation = q;
+            }
+        }
+    }
+
+    public void OnHandbrakeButtonDown()
+    {
+        isHandbrakeActive = true;
+        breakActivate = true;
+    }
+
+    public void OnHandbrakeButtonUp()
+    {
+        isHandbrakeActive = false;
+        breakActivate = false;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (view.IsMine)
+        {
+            Rigidbody otherRb = collision.rigidbody;
+            if (otherRb != null)
+            {
+                float otherMass = otherRb.mass;
+                Vector3 otherVelocity = otherRb.linearVelocity;
+                Vector3 impactForce = rb.linearVelocity * rb.mass + otherVelocity * otherMass;
+                otherRb.AddForce(impactForce, ForceMode.Impulse);
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (view.IsMine)
+        {
+            gameObject.GetComponent<Explosion>().Explode();
+            var drone = GameObject.Instantiate(Drone, transform.position, transform.rotation);
+            drone.tag = transform.tag;
+            Camera.transform.SetParent(drone.transform);
+            Camera.transform.localPosition = Vector3.zero;
+        }
+    }
+}

@@ -55,6 +55,7 @@ namespace RootMotion
         public float y { get; private set; } // The current y rotation of the camera
         public float distanceTarget { get; private set; } // Get/set distance
 
+        private int tagger;
         private Vector3 targetDistance, position;
         private Quaternion rotation = Quaternion.identity;
         private Vector3 smoothPosition;
@@ -68,6 +69,8 @@ namespace RootMotion
 
         public Joystick carJoystick; 
         private bool isTouchingJoystick = false;
+
+        private PhotonView view;
 
         public void SetAngles(Quaternion rotation)
         {
@@ -84,11 +87,35 @@ namespace RootMotion
 
         private void Start()
         {
-            if (PhotonNetwork.IsConnected && PhotonNetwork.LocalPlayer.IsLocal)
+            // Ќаходим локального игрока
+            GameObject localPlayer = FindLocalPlayer();
+            if (localPlayer != null)
             {
-                // ”становите цель только дл€ локального игрока
-                target = transform.parent;
+                target = localPlayer.transform.parent;
+                Debug.Log("Camera target set to: " + localPlayer.name);
             }
+
+            //if (PhotonNetwork.IsConnected && PhotonNetwork.LocalPlayer.IsLocal)
+            //{
+            // ”становите цель только дл€ локального игрока
+            //tagger = GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Counter;
+            //target = transform.parent;
+            //target = GameObject.FindGameObjectWithTag("P" + tagger).transform;
+            //}
+        }
+
+        GameObject FindLocalPlayer()
+        {
+            // »щем все PhotonView и находим тот, который принадлежит нам
+            PhotonView[] photonViews = FindObjectsOfType<PhotonView>();
+            foreach (PhotonView view in photonViews)
+            {
+                if (view.IsMine)
+                {
+                    return view.gameObject;
+                }
+            }
+            return null;
         }
 
         // Initiate, set the params to the current transformation of the camera relative to the target
@@ -104,7 +131,7 @@ namespace RootMotion
 
             cam = GetComponent<Camera>();
 
-            int tagger = GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Counter;
+            //tagger = GameObject.FindGameObjectWithTag("Platform").GetComponent<DefaultStatics>().Counter;
             //target = GameObject.FindGameObjectWithTag("P" + 1 ).transform;
 
             
