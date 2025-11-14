@@ -14,6 +14,7 @@ public class MenuManager : MonoBehaviourPunCallbacks
     public Button joinButton;
     public Button retryButton;
     public GameObject loadingPanel;
+    public Toggle IfOffline;
 
     private bool isConnected = false;
     private bool isInLobby = false;
@@ -22,6 +23,7 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     void Start()
     {
+        IfOffline.isOn = false; 
         Debug.Log("Initializing Photon...");
 
         // Важные настройки
@@ -133,7 +135,7 @@ public class MenuManager : MonoBehaviourPunCallbacks
             Debug.Log(" Не найдено ");
         }
 
-        Debug.LogError($" Disconnected: {cause}");
+        Debug.Log($" Disconnected: {cause}");
         isConnected = false;
         isInLobby = false;
 
@@ -145,8 +147,28 @@ public class MenuManager : MonoBehaviourPunCallbacks
         SafeSetGameObjectActive(retryButton?.gameObject, true);
     }
 
+    private void CreateOfflineRoom()
+    {
+        string roomName = createInput != null ? createInput.text.Trim() : "";
+        if (string.IsNullOrEmpty(roomName))
+        {
+            roomName = "OfflineRoom_" + Random.Range(1000, 9999);
+            if (createInput != null) createInput.text = roomName;
+        }
+
+        UpdateConnectionStatus("Creating offline room...");
+        PhotonNetwork.CreateRoom(roomName);
+    }
+
     public void CreateRoom()
     {
+        if (IfOffline)
+        {
+            OnDisconnected(new DisconnectCause());
+            CreateOfflineRoom();
+            return;
+        }
+
         if (!isInLobby)
         {
             UpdateConnectionStatus("Not in lobby! Please wait...");
@@ -178,6 +200,9 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public void JoinRoom()
     {
+        if (IfOffline) { 
+        }
+
         if (!isInLobby)
         {
             UpdateConnectionStatus("Not in lobby! Please wait...");
