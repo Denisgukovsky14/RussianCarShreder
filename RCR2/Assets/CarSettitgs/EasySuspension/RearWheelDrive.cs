@@ -10,6 +10,7 @@ public class RearWheelDrive : MonoBehaviour
 {
     public GameObject canvas;
     private PlayerCanvas playerCanvas;
+    public ExhaustPipe pipe;
 
     public CarConfig CarConfig;
     private PhotonView view;
@@ -146,6 +147,9 @@ public class RearWheelDrive : MonoBehaviour
         if (view.IsMine)
         {
             //speedmeter.text = "Speed: " + Mathf.Round(currentSpeed);
+
+
+            pipe.SetSmokeIntensity(Mathf.Max( currentSpeed/maxSpeed , Mathf.Abs( maxTorque * 1.5f) ) );
 
             float angle = 0f;
             float torque = 0f;

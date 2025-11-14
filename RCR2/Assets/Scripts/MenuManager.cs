@@ -30,9 +30,9 @@ public class MenuManager : MonoBehaviourPunCallbacks
         // Настройки Photon
         PhotonNetwork.AutomaticallySyncScene = true;
         PhotonNetwork.GameVersion = "1.0";
-        PhotonNetwork.SendRate = 20;
+        PhotonNetwork.SendRate = 30;
         PhotonNetwork.SerializationRate = 10;
-        PhotonNetwork.KeepAliveInBackground = 300000;
+        PhotonNetwork.KeepAliveInBackground = 60;
 
         InitializeUI();
         ConnectToPhoton(); // ТОЛЬКО ОДИН РАЗ!
@@ -205,6 +205,11 @@ public class MenuManager : MonoBehaviourPunCallbacks
         SafeSetGameObjectActive(retryButton?.gameObject, false);
         SafeSetGameObjectActive(loadingPanel, true);
         ConnectToPhoton();
+    }
+
+    public void OnConnectedToServer( DisconnectCause cause ) 
+    {
+        Debug.Log(cause);
     }
 
     public override void OnCreatedRoom()
