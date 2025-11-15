@@ -86,8 +86,10 @@ namespace SuperMobileAds
             }
         }
 
-        private async void ShowingBanner()
+        private async void ShowingBanner(  )
         {
+
+            
             await Task.Delay(UnityEngine.Random.Range(100, 5000));
 
             onAdShown?.Invoke();

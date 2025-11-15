@@ -109,6 +109,7 @@ public class PlayerAdManager : MonoBehaviour
             };
 
             rewardedAd.onAdRewarded += () => {
+                AnalyticsManager.Instance.TrackUserEvent("ad_watched", null);
                 Debug.Log("Игрок получил награду!");
                 // Выдай игроку валюту/бонусы
                 Debug.Log("Игрок получил свои бонусы");

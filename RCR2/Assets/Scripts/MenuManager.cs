@@ -158,6 +158,9 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
         UpdateConnectionStatus("Creating offline room...");
         PhotonNetwork.CreateRoom(roomName);
+
+        AnalyticsManager.Instance.TrackLevelEvent(2, "start");
+        Debug.Log("гдеяэ!!!!!!!!!!!!!!!!!!!");
     }
 
     public void CreateRoom()
@@ -278,6 +281,7 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     private void StartGame()
     {
+        //AnalyticsManager.Instance.TrackLevelEvent(2, "start");
         UpdateConnectionStatus("Starting game...");
         PhotonNetwork.LoadLevel("GAME");
     }
