@@ -7,6 +7,8 @@ public class EasySuspension : MonoBehaviour
 {
     public CarConfig config;
 
+
+
     [Range(0, 20)]
     public float naturalFrequency = 10;
 

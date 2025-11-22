@@ -9,6 +9,7 @@ public class AdButtonHandler : MonoBehaviour
 
     [Header("Ссылка на PlayerAdManager")]
     public PlayerAdManager playerAdManager;
+    [SerializeField] PlayerAdManager[] allAdManagers;
 
     private PhotonView view;
 
@@ -25,10 +26,13 @@ public class AdButtonHandler : MonoBehaviour
             FindLocalPlayerAdManager();
     }
 
+
+    // Вот здесь вылетает ошибка
     void FindLocalPlayerAdManager()
     {
         // Ищем всех PlayerAdManager в сцене
-        PlayerAdManager[] allAdManagers = FindObjectsOfType<PlayerAdManager>();
+        //allAdManagers = GetComponentsInParent<PlayerAdManager>(true);
+        
 
         foreach (PlayerAdManager manager in allAdManagers)
         {

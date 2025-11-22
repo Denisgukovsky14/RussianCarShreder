@@ -8,6 +8,11 @@ using Unity.VisualScripting;
 
 public class RearWheelDrive : MonoBehaviour
 {
+    [Header("AI Control")]
+    public bool useAIControl = false;
+    public float aiHorizontal = 0f;
+    public float aiVertical = 0f;
+
     public GameObject canvas;
     private PlayerCanvas playerCanvas;
     public ExhaustPipe pipe;
@@ -23,6 +28,8 @@ public class RearWheelDrive : MonoBehaviour
     public float brakeTorque = 5000;
     public float handbrakeTorque = 10000;
     public float accelerationMultiplier = 1.5f;
+
+    public bool firsthit = false;
 
     bool isHandbrakeActive = false;
 
@@ -47,6 +54,7 @@ public class RearWheelDrive : MonoBehaviour
         return currentSpeed;
     }
 
+    //PunRpc это такой своеобразный серверный синхронизатор который всем игрокам показывает одинаковую картинку
     [PunRPC]
     public void UpdateWheelPose(Vector3 position, Quaternion rotation)
     {
@@ -88,6 +96,14 @@ public class RearWheelDrive : MonoBehaviour
 
     public void Start()
     {
+        if ( transform.tag == "Bot")
+        {
+            useAIControl = true;
+            Debug.Log("================================================");
+            maxSpeed = 170f;
+            maxTorque += 100;
+        } 
+
         rb = GetComponentInParent<Rigidbody>();
         previousSpeed = rb.linearVelocity.magnitude;
         view = GetComponent<PhotonView>();
@@ -110,10 +126,11 @@ public class RearWheelDrive : MonoBehaviour
             }
         }
 
-        //if (view.IsMine)
-        //{
+        if (view.IsMine)
+        {
             Debug.Log("AGA");
             CreateCanvasForPlayer();
+        }
             wheels = GetComponentsInChildren<WheelCollider>();
 
             for (int i = 0; i < wheels.Length; ++i)
@@ -144,29 +161,55 @@ public class RearWheelDrive : MonoBehaviour
 
     public void FixedUpdate()
     {
-        if (view.IsMine)
+        if (view.IsMine || useAIControl)
         {
+            currentSpeed = rb.linearVelocity.magnitude * 3.6f;
+            
             //speedmeter.text = "Speed: " + Mathf.Round(currentSpeed);
 
-
+            // Здесь мы задаем интенсивность дыма
             pipe.SetSmokeIntensity(Mathf.Max( currentSpeed/maxSpeed , Mathf.Abs( maxTorque * 1.5f) ) );
 
             float angle = 0f;
             float torque = 0f;
 
-#if UNITY_IOS || UNITY_ANDROID
-            if (joystick)
-            {
-                angle = maxAngle * joystick.Horizontal;
-                torque = maxTorque * joystick.Vertical;
-            }
-#else
-            angle = maxAngle * (Input.GetAxis("Horizontal") + joystick.Horizontal);
-            torque = maxTorque * (Input.GetAxis("Vertical") + joystick.Vertical);
-#endif
 
-            currentSpeed = rb.linearVelocity.magnitude * 3.6f;
-            previousSpeed = currentSpeed;
+            //if (joystick)
+            //{
+            //    angle = maxAngle * joystick.Horizontal;
+            //    torque = maxTorque * joystick.Vertical;
+            //}
+
+            //angle = maxAngle * (Input.GetAxis("Horizontal") + joystick.Horizontal);
+            //torque = maxTorque * (Input.GetAxis("Vertical") + joystick.Vertical);
+
+            float horizontal, vertical;
+
+            if (useAIControl)
+            {
+                // Используем AI управление
+                horizontal = Mathf.Clamp(aiHorizontal, -1f, 1f);
+                vertical = Mathf.Clamp(aiVertical, -1f, 1f);
+                Debug.Log($"AI Driving - H: {horizontal}, V: {vertical}"); 
+            }
+            else
+            {
+                // Старая логика - управление игрока
+                if (Mathf.Abs(joystick.Horizontal) > 0.1f || Mathf.Abs(joystick.Vertical) > 0.1f)
+                {
+                    horizontal = joystick.Horizontal;
+                    vertical = joystick.Vertical;
+                }
+                else
+                {
+                    horizontal = Input.GetAxis("Horizontal");
+                    vertical = Input.GetAxis("Vertical");
+                }
+            }
+
+            // Дальше твой существующий код остается без изменений:
+            angle = maxAngle * horizontal;
+            torque = maxTorque * vertical;
 
             if (!breakActivate)
             {
@@ -264,6 +307,11 @@ public class RearWheelDrive : MonoBehaviour
             bool LetsDeath = Input.GetKey(KeyCode.V);
             if (LetsDeath)
             {
+                foreach (WheelCollider wheel in wheels)
+                {
+                    Destroy(wheel.gameObject);
+                }
+
                 Destroy(gameObject);
             }
         }
@@ -296,17 +344,30 @@ public class RearWheelDrive : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (view.IsMine)
+        if (view.IsMine || useAIControl)
         {
             Rigidbody otherRb = collision.rigidbody;
-            if (otherRb != null)
+            if (otherRb != null && firsthit == true)
             {
+                firsthit = false; // Сразу ставим false
+
                 float otherMass = otherRb.mass;
                 Vector3 otherVelocity = otherRb.linearVelocity;
-                Vector3 impactForce = rb.linearVelocity * rb.mass + otherVelocity * otherMass;
+                Vector3 impactForce = rb.linearVelocity * rb.mass * 5.6f + otherVelocity * otherMass * 5.6f;
                 otherRb.AddForce(impactForce, ForceMode.Impulse);
+
+                Debug.Log(" First collision handled");
+
+                // Через 1 секунду сбрасываем флаг
+                Invoke("ResetFirstHit", 1f);
             }
         }
+    }
+
+    private void ResetFirstHit()
+    {
+        firsthit = true;
+        Debug.Log(" FirstHit reset after 1 second");
     }
 
     private void OnDestroy()

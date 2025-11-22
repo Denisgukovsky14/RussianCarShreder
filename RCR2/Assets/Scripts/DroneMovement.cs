@@ -1,83 +1,82 @@
-using Photon.Pun;
-using RootMotion;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 public class DroneMovement : MonoBehaviour
 {
-    public float moveSpeed = 5f;     // Скорость движения по горизонтали
-    public float ascendSpeed = 2f;   // Скорость подъема
-    public float descendSpeed = 2f;  // Скорость опускания
-    private PhotonView view;
+    public float moveSpeed = 5f;
+    public float ascendSpeed = 2f;
+    public float descendSpeed = 2f;
     private Camera camera;
-
-    public void Initialize ( PhotonView takeview )
-    {
-        view = takeview;
-    }
 
     void Start()
     {
-        Transform cameraTransform = transform.Find("Camera");
-        camera = cameraTransform.GetComponent<Camera>();
-        cameraTransform.GetComponent<CameraController>().enabled = true;
-        camera.enabled = true;
-        camera.transform.position += new Vector3(0, -0.3f, 0);
+        SetupSpectatorCamera();
+    }
+
+    void SetupSpectatorCamera()
+    {
+        // Создаем или находим камеру для наблюдения
+        GameObject cameraObj = GameObject.Find("SpectatorCamera");
+        if (cameraObj == null)
+        {
+            cameraObj = new GameObject("SpectatorCamera");
+            camera = cameraObj.AddComponent<Camera>();
+            cameraObj.AddComponent<AudioListener>();
+        }
+        else
+        {
+            camera = cameraObj.GetComponent<Camera>();
+        }
+
+        // Прикрепляем камеру к дрону
+        cameraObj.transform.SetParent(transform);
+        cameraObj.transform.localPosition = new Vector3(0, 0.3f, 0);
+        cameraObj.transform.localRotation = Quaternion.identity;
+
+        // Отключаем другие камеры если нужно
+        DisablePlayerCameras();
+    }
+
+    void DisablePlayerCameras()
+    {
+        // Отключаем камеры живых игроков
+        Camera[] allCameras = FindObjectsOfType<Camera>();
+        foreach (Camera cam in allCameras)
+        {
+            if (cam != camera)
+            {
+                cam.enabled = false;
+                AudioListener audioListener = cam.GetComponent<AudioListener>();
+                if (audioListener != null) audioListener.enabled = false;
+            }
+        }
     }
 
     void Update()
     {
-        if (camera == null) return; // Если камера не найдена, выходим из метода
+        // Управление дроном (только для наблюдателя)
+        HandleMovement();
+    }
 
-        // Получаем направление камеры
-        Vector3 cameraDirection = camera.transform.forward;
-        cameraDirection.y = 0; // Игнорируем вертикальную компоненту для движения
-
-        // Двигаем объект по направлению к камере
-        Vector3 rightDirection = camera.transform.right;
-
-        // Обрабатываем движение
+    void HandleMovement()
+    {
+        // Твое текущее управление...
         Vector3 moveDirection = Vector3.zero;
 
-        if (Input.GetKey(KeyCode.W)) // Вперед
-        {
-            moveDirection += cameraDirection.normalized;
-        }
-        if (Input.GetKey(KeyCode.S)) // Назад
-        {
-            moveDirection -= cameraDirection.normalized;
-        }
-        if (Input.GetKey(KeyCode.A)) // Влево
-        {
-            moveDirection -= rightDirection.normalized;
-        }
-        if (Input.GetKey(KeyCode.D)) // Вправо
-        {
-            moveDirection += rightDirection.normalized;
-        }
+        if (Input.GetKey(KeyCode.W)) moveDirection += transform.forward;
+        if (Input.GetKey(KeyCode.S)) moveDirection -= transform.forward;
+        if (Input.GetKey(KeyCode.A)) moveDirection -= transform.right;
+        if (Input.GetKey(KeyCode.D)) moveDirection += transform.right;
 
-        // Поворачиваем дрон в направлении камеры
         transform.Translate(moveDirection.normalized * moveSpeed * Time.deltaTime, Space.World);
 
-        // Поворачиваем дрон в направлении движения
-        if (moveDirection != Vector3.zero) // Проверяем, чтобы избежать ошибок при нулевом векторе
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f); // Плавный поворот
-        }
+        // Подъем/опускание
+        if (Input.GetKey(KeyCode.Space)) transform.Translate(Vector3.up * ascendSpeed * Time.deltaTime);
+        if (Input.GetKey(KeyCode.LeftShift)) transform.Translate(Vector3.down * descendSpeed * Time.deltaTime);
 
-        // Проверяем нажатие пробела для подъема
-        if (Input.GetKey(KeyCode.Space))
-        {
-            transform.Translate(Vector3.up * ascendSpeed * Time.deltaTime);
-        }
-
-        // Проверяем нажатие Shift для опускания
-        if (Input.GetKey(KeyCode.LeftShift))
-        {
-            transform.Translate(Vector3.down * descendSpeed * Time.deltaTime);
-        }
+        // Поворот камеры (мышью)
+        float mouseX = Input.GetAxis("Mouse X");
+        float mouseY = Input.GetAxis("Mouse Y");
+        transform.Rotate(0, mouseX * 2f, 0);
+        camera.transform.Rotate(-mouseY * 2f, 0, 0);
     }
 }

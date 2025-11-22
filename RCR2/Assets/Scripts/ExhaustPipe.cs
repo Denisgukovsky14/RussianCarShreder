@@ -6,6 +6,7 @@ public class ExhaustPipe : MonoBehaviour
     public ParticleSystem smokeParticles;
 
     [Header("Настройки дыма")]
+    // Эмиссия - поток частиц
     public float minEmission = 5f;
     public float maxEmission = 5f;
     [Range(0, 1)] public float currentIntensity = 0f;
@@ -44,6 +45,7 @@ public class ExhaustPipe : MonoBehaviour
         if (smokeParticles == null || carRigidbody == null) return;
 
         // Получаем локальную скорость машины
+        // Если машина повернута на 90° вправо: (10, 0, 0) - теперь "вперед" это по оси X
         Vector3 localVelocity = transform.InverseTransformDirection(carRigidbody.linearVelocity);
 
         // Вычисляем влияние скорости на дым

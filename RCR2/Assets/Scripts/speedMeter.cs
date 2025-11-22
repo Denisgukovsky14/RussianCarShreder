@@ -48,8 +48,10 @@ public class SpeedMeter : MonoBehaviour
         // Проверяем владение машиной
         if (view != null && view.IsMine && drivescript != null)
         {
+            Debug.Log ( drivescript.GetCurrentSpeed() );
             angle = (int)Mathf.Round(Mathf.Abs(drivescript.GetCurrentSpeed()) * -1.8f);
             this.transform.eulerAngles = new Vector3(0, 0, angle + 90);
+
         }
     }
 }

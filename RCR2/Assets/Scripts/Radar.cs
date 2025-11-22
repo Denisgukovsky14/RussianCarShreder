@@ -10,7 +10,7 @@ public class Radar : MonoBehaviour
 
     void Update()
     {
-        // Вычисляем скорость: 360 градусов / время
+        // Делим расстояние на время, получаем скорость
         float speed = 360f / rotationTime;
 
         // Вращаем вокруг оси Y

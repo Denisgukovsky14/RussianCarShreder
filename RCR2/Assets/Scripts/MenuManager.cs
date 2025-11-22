@@ -160,7 +160,6 @@ public class MenuManager : MonoBehaviourPunCallbacks
         PhotonNetwork.CreateRoom(roomName);
 
         AnalyticsManager.Instance.TrackLevelEvent(2, "start");
-        Debug.Log("гдеяэ!!!!!!!!!!!!!!!!!!!");
     }
 
     public void CreateRoom()
