@@ -126,7 +126,7 @@ public class RearWheelDrive : MonoBehaviour
             }
         }
 
-        if (view.IsMine)
+        if (view.IsMine || useAIControl)
         {
             Debug.Log("AGA");
             CreateCanvasForPlayer();
@@ -307,6 +307,7 @@ public class RearWheelDrive : MonoBehaviour
             bool LetsDeath = Input.GetKey(KeyCode.V);
             if (LetsDeath)
             {
+                Debug.Log("СМЭРТЬ");
                 foreach (WheelCollider wheel in wheels)
                 {
                     Destroy(wheel.gameObject);
@@ -380,5 +381,10 @@ public class RearWheelDrive : MonoBehaviour
             Camera.transform.SetParent(drone.transform);
             Camera.transform.localPosition = Vector3.zero;
         }
+        else
+        {
+            gameObject.GetComponent<Explosion>().Explode();
+        }
+        
     }
 }

@@ -26,7 +26,7 @@ public class BotCarAI : MonoBehaviour
 
     void Start()
     {
-        //isDebug = true;
+        isDebug = true;
         Debug.Log("=== BOT CAR AI START ===");
 
         // Находим компоненты
@@ -118,6 +118,7 @@ public class BotCarAI : MonoBehaviour
         return candidates[randomIndex];
     }
 
+    // Контроль самого направления
     void CalculateSteering()
     {
 
@@ -199,6 +200,7 @@ public class BotCarAI : MonoBehaviour
         Invoke("ResetAfterReverse", 1.5f);
     }
 
+    // Контроль мощности в зависимости от угла
     float CalculateThrottle(float distance, float angle)
     {
         // Если угол слишком большой - замедляемся для поворота
