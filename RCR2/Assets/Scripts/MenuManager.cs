@@ -3,10 +3,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using Photon.Pun;
 using Photon.Realtime;
+using TMPro;
 
 public class MenuManager : MonoBehaviourPunCallbacks
 {
     [Header("UI References")]
+    public TMP_InputField playerNameInput;
     public InputField createInput;
     public InputField joinInput;
     public Text connectionStatusText;
@@ -23,6 +25,12 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     void Start()
     {
+
+        if (playerNameInput != null && string.IsNullOrEmpty(playerNameInput.text))
+        {
+            playerNameInput.text = "Player_" + Random.Range(1000, 9999);
+        }
+
         IfOffline.isOn = false; 
         Debug.Log("Initializing Photon...");
 
@@ -164,6 +172,17 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public void CreateRoom()
     {
+        if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
+        {
+            PhotonNetwork.NickName = playerNameInput.text;
+            Debug.Log($" Ник установлен: {PhotonNetwork.NickName}");
+        }
+        else
+        {
+            PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
+            Debug.Log($" Случайный ник: {PhotonNetwork.NickName}");
+        }
+
         if (IfOffline)
         {
             OnDisconnected(new DisconnectCause());
@@ -202,6 +221,18 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public void JoinRoom()
     {
+
+        if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
+        {
+            PhotonNetwork.NickName = playerNameInput.text;
+            Debug.Log($" Ник установлен: {PhotonNetwork.NickName}");
+        }
+        else
+        {
+            PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
+            Debug.Log($" Случайный ник: {PhotonNetwork.NickName}");
+        }
+
         if (IfOffline) { 
         }
 

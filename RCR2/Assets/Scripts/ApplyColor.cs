@@ -7,12 +7,9 @@ public class ApplyColor : MonoBehaviour
     public FlexibleColorPicker fcp;
     public Material material;
 
-    private void Start()
-    {
-        //gameObject.GetComponent<Material>() ;
-    }
 
-    // Update is called once per frame
+    // Update вызывается каждый кадр и считывает данные с цветого ползунка
+
     private void Update()
     {
        gameObject.GetComponent<Renderer>().material.color = fcp.color;

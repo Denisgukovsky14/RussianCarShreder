@@ -27,7 +27,6 @@ public class BotCarAI : MonoBehaviour
     void Start()
     {
         isDebug = true;
-        Debug.Log("=== BOT CAR AI START ===");
 
         // Находим компоненты
         carController = GetComponent<RearWheelDrive>();
@@ -42,7 +41,7 @@ public class BotCarAI : MonoBehaviour
 
         // Включаем AI управление
         carController.useAIControl = true;
-        Debug.Log($"AI control set to: {carController.useAIControl}");
+        //Debug.Log($"AI control set to: {carController.useAIControl}");
 
         // Если цель не назначена - ищем игрока
         if (playerTarget == null)
@@ -54,11 +53,11 @@ public class BotCarAI : MonoBehaviour
     void Update()
     {
 
-        Debug.Log($"=== BOT UPDATE ===");
-        Debug.Log($"PlayerTarget: {playerTarget != null}");
-        Debug.Log($"CarController: {carController != null}");
-        Debug.Log($"useAIControl: {carController?.useAIControl}");
-        Debug.Log($"AI Input - H: {carController?.aiHorizontal}, V: {carController?.aiVertical}");
+        //Debug.Log($"=== BOT UPDATE ===");
+        //Debug.Log($"PlayerTarget: {playerTarget != null}");
+        //Debug.Log($"CarController: {carController != null}");
+        //Debug.Log($"useAIControl: {carController?.useAIControl}");
+        //Debug.Log($"AI Input - H: {carController?.aiHorizontal}, V: {carController?.aiVertical}");
 
 
         
@@ -70,7 +69,7 @@ public class BotCarAI : MonoBehaviour
         }
 
         CalculateSteering();
-        Debug.Log($"After CalculateSteering - H: {carController.aiHorizontal}, V: {carController.aiVertical}");
+        //Debug.Log($"After CalculateSteering - H: {carController.aiHorizontal}, V: {carController.aiVertical}");
 
 
         if (isDebug)
@@ -94,7 +93,7 @@ public class BotCarAI : MonoBehaviour
         if (player != null)
         {
             playerTarget = player.transform;
-            Debug.Log("Bot found player target: " + playerTarget.name);
+            //Debug.Log("Bot found player target: " + playerTarget.name);
         }
     }
 
@@ -153,7 +152,7 @@ public class BotCarAI : MonoBehaviour
         if (GetCurrentSpeed() < UnstackSpeed)
         {
             timer += Time.deltaTime;
-            Debug.Log(timer);
+            //Debug.Log(timer);
             if (timer > 3.0f)
             {
                 //UnstackSpeed += 2.0f;
@@ -167,7 +166,7 @@ public class BotCarAI : MonoBehaviour
             UnstackSpeed = 5.0f;
         }
 
-        Debug.Log($" Angle: {targetAngleDeg:F0}° | Speed: {carController.GetCurrentSpeed():F1} | Input: V:{carController.aiVertical:F1} H:{carController.aiHorizontal:F1}");
+        //Debug.Log($" Angle: {targetAngleDeg:F0}° | Speed: {carController.GetCurrentSpeed():F1} | Input: V:{carController.aiVertical:F1} H:{carController.aiHorizontal:F1}");
     }
 
     bool ShouldReverseAndTurn(float angle, float distance)
@@ -189,7 +188,7 @@ public class BotCarAI : MonoBehaviour
  
     void HandleReverseTurn(float angle)
     {
-        Debug.Log(" Performing reverse turn!");
+        //Debug.Log(" Performing reverse turn!");
 
         lastReverseTime = Time.time;
 

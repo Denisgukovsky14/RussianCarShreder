@@ -4,7 +4,7 @@ public class BotManager : MonoBehaviour
 {
     [Header("Bot Settings")]
     public GameObject botPrefab;
-    public int botsPerPlayer = 1;
+    public int botsPerPlayer = 0;
     public Vector3 protectedDestination; // “очка, которую защищают боты
 
     [Header("Spawn Settings")]
@@ -13,7 +13,7 @@ public class BotManager : MonoBehaviour
 
     public void InitializeBots()
     {
-        Debug.Log("Starting bot spawn...");
+        //Debug.Log("Starting bot spawn...");
 
         int botCount = GetBotCount();
 
@@ -22,7 +22,7 @@ public class BotManager : MonoBehaviour
             SpawnSingleBot(i);
         }
 
-        Debug.Log($"Spawned {botCount} bots");
+        //Debug.Log($"Spawned {botCount} bots");
     }
 
     void SpawnSingleBot(int botIndex)
@@ -32,7 +32,7 @@ public class BotManager : MonoBehaviour
 
         // “олько устанавливаем точку защиты, игрока бот найдет сам
         SetupBotAI(bot, botIndex);
-        Debug.Log($"Bot {botIndex} spawned at {spawnPos}");
+       // Debug.Log($"Bot {botIndex} spawned at {spawnPos}");
     }
 
     void SetupBotAI(GameObject bot, int botIndex)
@@ -49,7 +49,7 @@ public class BotManager : MonoBehaviour
             botAI.maxSteerAngle = 25f + (botIndex * 5f);
             botAI.reverseDistance = 3f + (botIndex * 0.5f);
 
-            Debug.Log($"Bot {botIndex} configured");
+           // Debug.Log($"Bot {botIndex} configured");
         }
         else
         {

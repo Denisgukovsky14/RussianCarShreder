@@ -13,6 +13,7 @@ public class RearWheelDrive : MonoBehaviour
     public float aiHorizontal = 0f;
     public float aiVertical = 0f;
 
+    public PlayerInfo MyplayerInfo;
     public GameObject canvas;
     private PlayerCanvas playerCanvas;
     public ExhaustPipe pipe;
@@ -39,6 +40,8 @@ public class RearWheelDrive : MonoBehaviour
     public GameObject wheelShape;
     public GameObject Camera;
     public GameObject Drone;
+    public PlayerListUI playerListUI;
+    private GameObject playerListPanel;
 
     private Rigidbody rb;
 
@@ -48,6 +51,7 @@ public class RearWheelDrive : MonoBehaviour
     public float maxSpeed = 230f;
     public float maxReverseSpeed = 20f;
     public float accelerationCurve = 1.5f;
+    public bool isListVisible;
 
     public float GetCurrentSpeed()
     {
@@ -74,6 +78,8 @@ public class RearWheelDrive : MonoBehaviour
             return;
         }
 
+       
+
         // Создаем канвас как дочерний объект этой машины
         GameObject canvasObject = Instantiate(canvas, transform);
 
@@ -87,6 +93,15 @@ public class RearWheelDrive : MonoBehaviour
         {
             playerCanvas.SetupForPlayer(this);
             Debug.Log("Canvas создан как дочерний объект!");
+
+            playerListUI = playerCanvas.GetComponentInChildren<PlayerListUI>();
+
+            if (playerListUI != null)
+            {
+                playerListPanel = playerListUI.gameObject;
+                playerListPanel.gameObject.SetActive(false);
+            }
+
         }
         else
         {
@@ -163,6 +178,9 @@ public class RearWheelDrive : MonoBehaviour
     {
         if (view.IsMine || useAIControl)
         {
+
+            HandlePlayerListInput();
+
             currentSpeed = rb.linearVelocity.magnitude * 3.6f;
             
             //speedmeter.text = "Speed: " + Mathf.Round(currentSpeed);
@@ -190,7 +208,7 @@ public class RearWheelDrive : MonoBehaviour
                 // Используем AI управление
                 horizontal = Mathf.Clamp(aiHorizontal, -1f, 1f);
                 vertical = Mathf.Clamp(aiVertical, -1f, 1f);
-                Debug.Log($"AI Driving - H: {horizontal}, V: {vertical}"); 
+                //Debug.Log($"AI Driving - H: {horizontal}, V: {vertical}"); 
             }
             else
             {
@@ -307,6 +325,7 @@ public class RearWheelDrive : MonoBehaviour
             bool LetsDeath = Input.GetKey(KeyCode.V);
             if (LetsDeath)
             {
+
                 Debug.Log("СМЭРТЬ");
                 foreach (WheelCollider wheel in wheels)
                 {
@@ -328,6 +347,26 @@ public class RearWheelDrive : MonoBehaviour
                 shapeTransform.position = p;
                 shapeTransform.rotation = q;
             }
+        }
+    }
+
+    void HandlePlayerListInput()
+    {
+        if (playerListPanel == null) return;
+
+        if (Input.GetKey(KeyCode.Tab) && !isListVisible)
+        {
+            // ВКЛЮЧАЕМ
+            playerListPanel.SetActive(true);
+            isListVisible = true;
+            Debug.Log(" Список показан");
+        }
+        else if (!Input.GetKey(KeyCode.Tab) && isListVisible)
+        {
+            // ВЫКЛЮЧАЕМ
+            playerListPanel.SetActive(false);
+            isListVisible = false;
+            Debug.Log(" Список скрыт");
         }
     }
 
@@ -373,8 +412,11 @@ public class RearWheelDrive : MonoBehaviour
 
     private void OnDestroy()
     {
+
         if (view.IsMine)
         {
+            MyplayerInfo.MyDeath(PhotonNetwork.NickName);
+
             gameObject.GetComponent<Explosion>().Explode();
             var drone = GameObject.Instantiate(Drone, transform.position, transform.rotation);
             drone.tag = transform.tag;
