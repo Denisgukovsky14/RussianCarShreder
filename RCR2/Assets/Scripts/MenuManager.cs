@@ -23,6 +23,9 @@ public class MenuManager : MonoBehaviourPunCallbacks
     private float lastKeepAliveTime = 0f;
     private const float keepAliveInterval = 10f;
 
+    private int connectionRetries = 0;
+    private const int maxRetries = 3;
+
     void Start()
     {
 
@@ -112,7 +115,8 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public override void OnConnectedToMaster()
     {
-        Debug.Log(" Connected to Master Server");
+        Debug.Log("Successfully connected to Master Server in region: " + PhotonNetwork.CloudRegion);
+        connectionRetries = 0; // Сбрасываем счетчик ретраев
         isConnected = true;
         UpdateConnectionStatus("Connected! Joining lobby...");
 
@@ -133,17 +137,20 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public override void OnDisconnected(DisconnectCause cause)
     {
+        Debug.Log($"Disconnected: {cause}");
 
-        try
+        if (connectionRetries < maxRetries)
         {
-            GameObject.FindWithTag("Platform").GetComponent<DefaultStatics>().Counter -= 1;
+            connectionRetries++;
+            UpdateConnectionStatus($"Reconnecting... Attempt {connectionRetries}/{maxRetries}");
+            Invoke("ConnectToPhoton", 2f); // Повторная попытка через 2 сек
         }
-        catch
+        else
         {
-            Debug.Log(" Не найдено ");
+            UpdateConnectionStatus($"Failed to connect after {maxRetries} attempts");
+            // Показать кнопку переподключения
         }
 
-        Debug.Log($" Disconnected: {cause}");
         isConnected = false;
         isInLobby = false;
 
@@ -153,6 +160,15 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
         UpdateConnectionStatus($"Disconnected: {cause}");
         SafeSetGameObjectActive(retryButton?.gameObject, true);
+
+        try
+        {
+            GameObject.FindWithTag("Platform").GetComponent<DefaultStatics>().Counter -= 1;
+        }
+        catch
+        {
+            Debug.Log(" Не найдено ");
+        }
     }
 
     private void CreateOfflineRoom()
@@ -221,6 +237,18 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     public void JoinRoom()
     {
+        // Убеждаемся, что никнейм установлен до присоединения
+        if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
+        {
+            string validatedNickname = ValidateAndSanitizeNickname(playerNameInput.text);
+            PhotonNetwork.NickName = validatedNickname;
+            Debug.Log($"Никнейм установлен: {PhotonNetwork.NickName}");
+        }
+        else
+        {
+            PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
+            Debug.Log($"Случайный никнейм: {PhotonNetwork.NickName}");
+        }
 
         if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
         {
@@ -255,6 +283,22 @@ public class MenuManager : MonoBehaviourPunCallbacks
         SafeSetGameObjectActive(loadingPanel, true);
 
         PhotonNetwork.JoinRoom(roomName);
+    }
+
+    private string ValidateAndSanitizeNickname(string nickname)
+    {
+        if (string.IsNullOrEmpty(nickname))
+            return "Player_" + Random.Range(1000, 9999);
+
+        // Ограничение длины
+        if (nickname.Length > 20)
+            nickname = nickname.Substring(0, 20);
+
+        // Удаление опасных символов
+        System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(@"[^a-zA-Z0-9_\- ]");
+        nickname = regex.Replace(nickname, "");
+
+        return nickname.Trim();
     }
 
     public void ManualReconnect()
@@ -341,6 +385,16 @@ public class MenuManager : MonoBehaviourPunCallbacks
         Debug.Log(" Joined room successfully!");
         UpdateConnectionStatus($"Joined room: {PhotonNetwork.CurrentRoom.Name}");
 
+        // Немедленная синхронизация никнейма
+        if (PhotonNetwork.InRoom)
+        {
+            Debug.Log($"Players in room: {PhotonNetwork.CurrentRoom.PlayerCount}");
+            foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
+            {
+                Debug.Log($" - {player.NickName} (Actor: {player.ActorNumber})");
+            }
+        }
+
         //  ПРОСТАЯ ЗАГРУЗКА СЦЕНЫ
         if (PhotonNetwork.IsMasterClient)
         {
@@ -358,6 +412,9 @@ public class MenuManager : MonoBehaviourPunCallbacks
     {
         Debug.Log($"Player {newPlayer.NickName} joined the room");
         UpdateConnectionStatus($"Players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
+
+        // Обновляем отображение списка игроков
+        PlayerInfoManager.Instance?.PrintAllPlayers();
 
         // Если достаточно игроков, начинаем игру
         if (PhotonNetwork.CurrentRoom.PlayerCount >= 2 && PhotonNetwork.IsMasterClient)

@@ -87,6 +87,8 @@ namespace RootMotion
 
         private void Start()
         {
+            Physics.IgnoreLayerCollision(LayerMask.NameToLayer("TransparentFX"), LayerMask.NameToLayer("Default"));
+
             // Находим локального игрока
             GameObject localPlayer = FindLocalPlayer();
             if (localPlayer != null)
