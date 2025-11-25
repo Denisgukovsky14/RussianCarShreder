@@ -86,17 +86,6 @@ public class PlayerListUI : MonoBehaviour
         playerListItems[actorNumber] = listItem;
         Debug.Log($" дНАЮБКЕМ Б UI: {playerInfo.Nickname} (ID: {actorNumber})");
 
-        //  рсони реярнбши акнй - рнвмн рюйни фе
-        GameObject testListItem = Instantiate(playerListItem, playerListContent);
-        PlayerListItemUI testItemUI = testListItem.GetComponent<PlayerListItemUI>();
-        testItemUI.Setup("реярнбши_хцпнй", 75, true, 9999);
-        Debug.Log($"  дНАЮБКЕМ реярнбши акнй");
-
-        //  еые ндхм реярнбши акнй
-        GameObject testListItem2 = Instantiate(playerListItem, playerListContent);
-        PlayerListItemUI testItemUI2 = testListItem2.GetComponent<PlayerListItemUI>();
-        testItemUI2.Setup("дпсцни_реяр", 50, false, 9998);
-        Debug.Log($"  дНАЮБКЕМ брнпни реярнбши акнй");
 
 
         UpdateRoomInfo();
