@@ -415,7 +415,7 @@ public class RearWheelDrive : MonoBehaviour
 
         if (view.IsMine)
         {
-            MyplayerInfo.MyDeath(PhotonNetwork.NickName);
+            //MyplayerInfo.MyDeath(PhotonNetwork.NickName);
 
             gameObject.GetComponent<Explosion>().Explode();
             var drone = GameObject.Instantiate(Drone, transform.position, transform.rotation);
