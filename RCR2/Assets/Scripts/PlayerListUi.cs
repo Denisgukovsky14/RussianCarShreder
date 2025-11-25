@@ -71,7 +71,7 @@ public class PlayerListUI : MonoBehaviour
 
     void OnPlayerAdded(PlayerInfo playerInfo)
     {
-        int actorNumber = playerInfo.photonView.OwnerActorNr;
+        int actorNumber = playerInfo.ActorNumber;
 
         //  ПРОВЕРЯЕМ ЧТО ИГРОК ЕЩЕ НЕ ДОБАВЛЕН
         if (playerListItems.ContainsKey(actorNumber))
@@ -80,6 +80,7 @@ public class PlayerListUI : MonoBehaviour
             return;
         }
 
+        // Скрипт создания блока с игроком в листе игроков
         GameObject listItem = Instantiate(playerListItem, playerListContent);
         PlayerListItemUI itemUI = listItem.GetComponent<PlayerListItemUI>();
         itemUI.Setup(playerInfo.Nickname, playerInfo.Health, playerInfo.IsAlive, actorNumber);
@@ -93,7 +94,7 @@ public class PlayerListUI : MonoBehaviour
 
     void OnPlayerRemoved(PlayerInfo playerInfo)
     {
-        int actorNumber = playerInfo.photonView.OwnerActorNr;
+        int actorNumber = playerInfo.ActorNumber;
 
         if (playerListItems.ContainsKey(actorNumber))
         {
@@ -107,7 +108,7 @@ public class PlayerListUI : MonoBehaviour
 
     void OnPlayerUpdated(PlayerInfo playerInfo)
     {
-        int actorNumber = playerInfo.photonView.OwnerActorNr;
+        int actorNumber = playerInfo.ActorNumber;
 
         if (playerListItems.ContainsKey(actorNumber))
         {

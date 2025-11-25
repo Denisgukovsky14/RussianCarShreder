@@ -62,7 +62,7 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
     public void RegisterPlayer(PlayerInfo playerInfo)
     {
         int oldCount = players.Count;
-        int actorNumber = playerInfo.photonView.OwnerActorNr;
+        int actorNumber = playerInfo.ActorNumber;
 
         if (!players.ContainsKey(actorNumber))
         {
@@ -91,7 +91,7 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
     public void UnregisterPlayer(PlayerInfo playerInfo)
     {
         int oldCount = players.Count;
-        int actorNumber = playerInfo.photonView.OwnerActorNr;
+        int actorNumber = playerInfo.ActorNumber;
 
         if (players.ContainsKey(actorNumber))
         {
@@ -188,11 +188,11 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
     //  ÑÎÇÄÀÅÌ ÂÈĞÒÓÀËÜÍÎÃÎ ÈÃĞÎÊÀ ÄËß ÎÒÎÁĞÀÆÅÍÈß
     PlayerInfo CreateVirtualPlayer(int actorNumber, string nickname, int health, bool alive)
     {
+        
+
         GameObject playerObj = new GameObject($"VirtualPlayer_{actorNumber}");
         PlayerInfo playerInfo = playerObj.AddComponent<PlayerInfo>();
-
-        //  ÈÍÈÖÈÀËÈÇÈĞÓÅÌ ÄÀÍÍÛÅ (íóæíî äîáàâèòü ìåòîäû äëÿ ıòîãî â PlayerInfo)
-        // playerInfo.InitializeRemotePlayer(nickname, health, alive);
+        playerInfo.InitializeRemotePlayer(nickname, health, alive, actorNumber);
 
         return playerInfo;
     }

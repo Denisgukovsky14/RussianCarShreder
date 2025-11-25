@@ -1,13 +1,17 @@
 using Photon.Pun;
 using UnityEngine;
+using TMPro;
 
 public class PlayerInfo : MonoBehaviourPun, IPunObservable
 {
     [Header("Player Data")]
+    [SerializeField] private TMP_Text nick;
     [SerializeField] private NetVar<string> _nickname = new NetVar<string>("Unknown");
     [SerializeField] private NetVar<int> _health = new NetVar<int>(100);
     [SerializeField] private NetVar<bool> _isAlive = new NetVar<bool>(true);
+    private int _actorNumber;
 
+    public int ActorNumber => _actorNumber;
     //  СВОЙСТВА ДЛЯ ДОСТУПА ИЗВНЕ
     public string Nickname => _nickname.Value;
     public int Health
@@ -39,11 +43,14 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
         // Устанавливаем данные для локального игрока
         if (photonView.IsMine)
         {
+            
             _nickname.Value = PhotonNetwork.NickName ?? "Player_" + photonView.OwnerActorNr;
+            _actorNumber = photonView.OwnerActorNr;
             _health.Value = 100;
             _isAlive.Value = true;
 
             Debug.Log($" Игрок создан: {_nickname.Value}, HP: {_health.Value}");
+            nick.text = _nickname.Value;
         }
 
         //  ПОДПИСКА НА СОБЫТИЯ NETVAR
@@ -131,11 +138,12 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
     }
 
     // В PlayerInfo.cs добавь:
-    public void InitializeRemotePlayer(string nickname, int health, bool alive)
+    public void InitializeRemotePlayer(string nickname, int health, bool alive, int actorNumber)
     {
         _nickname.Value = nickname;
         _health.Value = health;
         _isAlive.Value = alive;
+        _actorNumber = actorNumber;
     }
 
     void OnDestroy()
