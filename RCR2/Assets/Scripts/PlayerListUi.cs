@@ -1,106 +1,121 @@
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 using System.Collections.Generic;
 using Photon.Pun;
-using TMPro;
 
 public class PlayerListUI : MonoBehaviour
 {
     [Header("UI References")]
-    public Transform playerListContent;  // Перетащи сюда Content из ScrollView
-    public GameObject playerListItem;  // Перетащи сюда префаб PlayerListItemPrefab
+    public Transform playerListContent;
+    public GameObject playerListItem;
 
     [Header("UI Texts")]
-    public TMP_Text playerCountText;  // Опционально: для отображения общего количества
-    public TMP_Text roomInfoText;     // Опционально: для информации о комнате
-    //public GameObject playerListPanel;
+    public TMP_Text playerCountText;
+    public TMP_Text roomInfoText;
 
     private Dictionary<int, GameObject> playerListItems = new Dictionary<int, GameObject>();
+    private bool isSubscribed = false;
 
-    void Awake()
+    void OnEnable()
     {
-        //  УБИРАЕМ ПОВТОРНУЮ ПОДПИСКУ - ОСТАВЛЯЕМ ТОЛЬКО ЭТОТ ВЫЗОВ
         SubscribeToEvents();
-        //playerListPanel = transform.Find("PlayerListUI")?.gameObject;
-        //Debug.Log(playerListPanel);
+        RefreshPlayerList();
     }
-
-   
 
     void SubscribeToEvents()
     {
+        if (isSubscribed) return;
+
         if (PlayerInfoManager.Instance != null)
         {
-            //  ПОДПИСЫВАЕМСЯ ТОЛЬКО ОДИН РАЗ
             PlayerInfoManager.Instance.OnPlayerAdded += OnPlayerAdded;
             PlayerInfoManager.Instance.OnPlayerRemoved += OnPlayerRemoved;
             PlayerInfoManager.Instance.OnPlayerUpdated += OnPlayerUpdated;
             PlayerInfoManager.Instance.OnPlayerCountChanged += OnPlayerCountChanged;
 
-            Debug.Log(" PlayerListUI подписан на события");
+            isSubscribed = true;
+            Debug.Log("PlayerListUI подписан на события");
 
-            //  СРАЗУ ПОКАЗЫВАЕМ УЖЕ ЗАРЕГИСТРИРОВАННЫХ ИГРОКОВ
+            // Показываем существующих игроков
             ShowExistingPlayers();
         }
         else
         {
-            // Если менеджер еще не создан, пробуем снова через мгновение
-            Invoke("SubscribeToEvents", 0.1f);
+            Debug.LogWarning("PlayerInfoManager.Instance is null, повторная попытка подписки...");
+            Invoke("SubscribeToEvents", 0.5f);
         }
     }
 
-    //  ДОБАВЛЯЕМ МЕТОД ДЛЯ ПОКАЗА СУЩЕСТВУЮЩИХ ИГРОКОВ
     void ShowExistingPlayers()
     {
-        var allPlayers = PlayerInfoManager.Instance.GetAllPlayers();
-        foreach (var player in allPlayers.Values)
+        // Очищаем существующие элементы
+        foreach (var item in playerListItems.Values)
         {
-            OnPlayerAdded(player);
+            if (item != null) Destroy(item);
         }
-        Debug.Log($" Показано существующих игроков: {allPlayers.Count}");
+        playerListItems.Clear();
 
-        foreach (var player in allPlayers.Values)
+        // Добавляем всех существующих игроков
+        var allPlayers = PlayerInfoManager.Instance?.GetAllPlayers();
+        if (allPlayers != null)
         {
-            Debug.Log($" Обрабатываю игрока: {player.Nickname} (ID: {player.photonView.OwnerActorNr}, IsMine: {player.photonView.IsMine})");
-            OnPlayerAdded(player);
+            foreach (var player in allPlayers.Values)
+            {
+                OnPlayerAdded(player);
+            }
         }
-
     }
 
-
+    void RefreshPlayerList()
+    {
+        ShowExistingPlayers();
+        UpdateRoomInfo();
+    }
 
     void OnPlayerAdded(PlayerInfo playerInfo)
     {
+        if (playerInfo == null) return;
+
         int actorNumber = playerInfo.ActorNumber;
 
-        //  ПРОВЕРЯЕМ ЧТО ИГРОК ЕЩЕ НЕ ДОБАВЛЕН
         if (playerListItems.ContainsKey(actorNumber))
         {
-            Debug.Log($" Игрок {playerInfo.Nickname} уже есть в UI! Пропускаем...");
+            // Обновляем существующий элемент
+            OnPlayerUpdated(playerInfo);
             return;
         }
 
-        // Скрипт создания блока с игроком в листе игроков
-        GameObject listItem = Instantiate(playerListItem, playerListContent);
-        PlayerListItemUI itemUI = listItem.GetComponent<PlayerListItemUI>();
-        itemUI.Setup(playerInfo.Nickname, playerInfo.Health, playerInfo.IsAlive, actorNumber);
-        playerListItems[actorNumber] = listItem;
-        Debug.Log($" Добавлен в UI: {playerInfo.Nickname} (ID: {actorNumber})");
+        if (playerListItem != null && playerListContent != null)
+        {
+            GameObject listItem = Instantiate(playerListItem, playerListContent);
+            PlayerListItemUI itemUI = listItem.GetComponent<PlayerListItemUI>();
+            if (itemUI != null)
+            {
+                itemUI.Setup(playerInfo.Nickname, playerInfo.Health, playerInfo.IsAlive, actorNumber);
+            }
+            playerListItems[actorNumber] = listItem;
 
-
+            Debug.Log($"Добавлен игрок в UI: {playerInfo.Nickname} (ID: {actorNumber})");
+        }
+        else
+        {
+            Debug.LogError("PlayerListItem или PlayerListContent не назначены в инспекторе!");
+        }
 
         UpdateRoomInfo();
     }
 
     void OnPlayerRemoved(PlayerInfo playerInfo)
     {
+        if (playerInfo == null) return;
+
         int actorNumber = playerInfo.ActorNumber;
 
         if (playerListItems.ContainsKey(actorNumber))
         {
             Destroy(playerListItems[actorNumber]);
             playerListItems.Remove(actorNumber);
-            Debug.Log($" Удален из UI: {playerInfo.Nickname} (ID: {actorNumber})");
+            Debug.Log($"Удален игрок из UI: {playerInfo.Nickname} (ID: {actorNumber})");
         }
 
         UpdateRoomInfo();
@@ -108,13 +123,22 @@ public class PlayerListUI : MonoBehaviour
 
     void OnPlayerUpdated(PlayerInfo playerInfo)
     {
+        if (playerInfo == null) return;
+
         int actorNumber = playerInfo.ActorNumber;
 
         if (playerListItems.ContainsKey(actorNumber))
         {
             PlayerListItemUI itemUI = playerListItems[actorNumber].GetComponent<PlayerListItemUI>();
-            itemUI.UpdateInfo(playerInfo.Nickname, playerInfo.Health,
-                            playerInfo.IsAlive);
+            if (itemUI != null)
+            {
+                itemUI.UpdateInfo(playerInfo.Nickname, playerInfo.Health, playerInfo.IsAlive);
+            }
+        }
+        else
+        {
+            // Если элемента нет, добавляем его
+            OnPlayerAdded(playerInfo);
         }
     }
 
@@ -138,9 +162,20 @@ public class PlayerListUI : MonoBehaviour
         }
     }
 
-    //  ОТПИСЫВАЕМСЯ ПРИ УНИЧТОЖЕНИИ
+    void OnDisable()
+    {
+        UnsubscribeFromEvents();
+    }
+
     void OnDestroy()
     {
+        UnsubscribeFromEvents();
+    }
+
+    void UnsubscribeFromEvents()
+    {
+        if (!isSubscribed) return;
+
         if (PlayerInfoManager.Instance != null)
         {
             PlayerInfoManager.Instance.OnPlayerAdded -= OnPlayerAdded;
@@ -148,5 +183,7 @@ public class PlayerListUI : MonoBehaviour
             PlayerInfoManager.Instance.OnPlayerUpdated -= OnPlayerUpdated;
             PlayerInfoManager.Instance.OnPlayerCountChanged -= OnPlayerCountChanged;
         }
+
+        isSubscribed = false;
     }
 }

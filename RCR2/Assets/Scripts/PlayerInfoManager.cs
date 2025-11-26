@@ -1,28 +1,19 @@
 using Photon.Pun;
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 
 public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
 {
     public static PlayerInfoManager Instance;
 
-    [Header("Player Tracking")]
     private Dictionary<int, PlayerInfo> players = new Dictionary<int, PlayerInfo>();
 
-    //  ДЛЯ СИНХРОНИЗАЦИИ
-    private List<int> actorNumbers = new List<int>();
-    private List<string> nicknames = new List<string>();
-    private List<int> healths = new List<int>();
-    private List<bool> aliveStatuses = new List<bool>();
-
-    // ВСЕ события - и старые и новые
     public System.Action<PlayerInfo> OnPlayerAdded;
     public System.Action<PlayerInfo> OnPlayerRemoved;
     public System.Action<PlayerInfo> OnPlayerUpdated;
     public System.Action<int> OnPlayerCountChanged;
     public System.Action<int> OnAlivePlayerCountChanged;
 
-    // Свойства
     public int PlayerCount => players.Count;
 
     public int AlivePlayerCount
@@ -31,10 +22,8 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         {
             int count = 0;
             foreach (var player in players.Values)
-            {
                 if (player.IsAlive)
                     count++;
-            }
             return count;
         }
     }
@@ -45,18 +34,10 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            Debug.Log(" PlayerInfoManager создан!");
+            Debug.Log("PlayerInfoManager создан!");
         }
         else
-        {
             Destroy(gameObject);
-        }
-    }
-
-    void Start()
-    {
-        //  ПРИ СТАРТЕ ОБНОВЛЯЕМ ДАННЫЕ ДЛЯ СИНХРОНИЗАЦИИ
-        UpdateSyncData();
     }
 
     public void RegisterPlayer(PlayerInfo playerInfo)
@@ -68,23 +49,18 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         {
             players[actorNumber] = playerInfo;
 
-            Debug.Log($" PlayerInfoManager: Игрок {playerInfo.Nickname} зарегистрирован (ID: {actorNumber})");
-
-            //  ОБНОВЛЯЕМ ДАННЫЕ ДЛЯ СИНХРОНИЗАЦИИ
-            UpdateSyncData();
+            Debug.Log($"PlayerInfoManager: Игрок {playerInfo.Nickname} зарегистрирован (ID: {actorNumber})");
 
             OnPlayerAdded?.Invoke(playerInfo);
-            Debug.Log($" PlayerInfoManager: OnPlayerAdded вызван (подписчиков: {OnPlayerAdded?.GetInvocationList().Length ?? 0})");
 
             if (oldCount != players.Count)
             {
                 OnPlayerCountChanged?.Invoke(players.Count);
                 OnAlivePlayerCountChanged?.Invoke(AlivePlayerCount);
             }
-        }
-        else
-        {
-            Debug.Log($" PlayerInfoManager: Игрок {actorNumber} уже зарегистрирован");
+
+            Debug.Log($"Всего игроков: {players.Count}");
+            PrintAllPlayers();
         }
     }
 
@@ -95,12 +71,7 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
 
         if (players.ContainsKey(actorNumber))
         {
-            Debug.Log($" PlayerInfoManager: Удаляем игрока {playerInfo.Nickname} (ID: {actorNumber})");
-
             players.Remove(actorNumber);
-
-            //  ОБНОВЛЯЕМ ДАННЫЕ ДЛЯ СИНХРОНИЗАЦИИ
-            UpdateSyncData();
 
             OnPlayerRemoved?.Invoke(playerInfo);
 
@@ -112,125 +83,12 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         }
     }
 
-    //  ОБНОВЛЯЕМ ДАННЫЕ ДЛЯ СИНХРОНИЗАЦИИ
-    void UpdateSyncData()
+    public PlayerInfo CreateVirtualPlayer(int actorNumber, string nickname, int health, bool alive)
     {
-        actorNumbers.Clear();
-        nicknames.Clear();
-        healths.Clear();
-        aliveStatuses.Clear();
-
-        foreach (var kvp in players)
-        {
-            actorNumbers.Add(kvp.Key);
-            nicknames.Add(kvp.Value.Nickname);
-            healths.Add(kvp.Value.Health);
-            aliveStatuses.Add(kvp.Value.IsAlive);
-        }
-    }
-
-    //  СИНХРОНИЗАЦИЯ ЧЕРЕЗ PHOTON
-    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
-    {
-        if (stream.IsWriting)
-        {
-            //  ОТПРАВЛЯЕМ ДАННЫЕ ВСЕХ ИГРОКОВ
-            stream.SendNext(actorNumbers.Count);
-
-            for (int i = 0; i < actorNumbers.Count; i++)
-            {
-                stream.SendNext(actorNumbers[i]);
-                stream.SendNext(nicknames[i]);
-                stream.SendNext(healths[i]);
-                stream.SendNext(aliveStatuses[i]);
-            }
-
-            Debug.Log($" Отправлено игроков: {actorNumbers.Count}");
-        }
-        else
-        {
-            //  ПОЛУЧАЕМ ДАННЫЕ ВСЕХ ИГРОКОВ
-            int count = (int)stream.ReceiveNext();
-            Debug.Log($" Получено игроков: {count}");
-
-            // Временный словарь для новых данных
-            var newPlayers = new Dictionary<int, PlayerInfo>();
-
-            for (int i = 0; i < count; i++)
-            {
-                int actorNumber = (int)stream.ReceiveNext();
-                string nickname = (string)stream.ReceiveNext();
-                int health = (int)stream.ReceiveNext();
-                bool alive = (bool)stream.ReceiveNext();
-
-                //  СОЗДАЕМ ИЛИ ОБНОВЛЯЕМ ИГРОКА
-                if (players.ContainsKey(actorNumber))
-                {
-                    // Обновляем существующего
-                    var player = players[actorNumber];
-                    // Данные уже синхронизируются через NetVar, но можем обновить тут если нужно
-                    newPlayers[actorNumber] = player;
-                }
-                else
-                {
-                    //  СОЗДАЕМ ВИРТУАЛЬНОГО ИГРОКА ДЛЯ ОТОБРАЖЕНИЯ
-                    Debug.Log($" Создан виртуальный игрок: {nickname} (ID: {actorNumber})");
-                    var virtualPlayer = CreateVirtualPlayer(actorNumber, nickname, health, alive);
-                    newPlayers[actorNumber] = virtualPlayer;
-                }
-            }
-
-            //  ОБНОВЛЯЕМ СПИСОК ИГРОКОВ
-            UpdatePlayersFromSync(newPlayers);
-        }
-    }
-
-    //  СОЗДАЕМ ВИРТУАЛЬНОГО ИГРОКА ДЛЯ ОТОБРАЖЕНИЯ
-    PlayerInfo CreateVirtualPlayer(int actorNumber, string nickname, int health, bool alive)
-    {
-        
-
         GameObject playerObj = new GameObject($"VirtualPlayer_{actorNumber}");
         PlayerInfo playerInfo = playerObj.AddComponent<PlayerInfo>();
         playerInfo.InitializeRemotePlayer(nickname, health, alive, actorNumber);
-
         return playerInfo;
-    }
-
-    //  ОБНОВЛЯЕМ СПИСОК ИГРОКОВ ИЗ СИНХРОНИЗИРОВАННЫХ ДАННЫХ
-    void UpdatePlayersFromSync(Dictionary<int, PlayerInfo> newPlayers)
-    {
-        // Удаляем игроков которых больше нет
-        List<int> toRemove = new List<int>();
-        foreach (var kvp in players)
-        {
-            if (!newPlayers.ContainsKey(kvp.Key))
-            {
-                toRemove.Add(kvp.Key);
-            }
-        }
-
-        foreach (int actorNumber in toRemove)
-        {
-            if (players.ContainsKey(actorNumber))
-            {
-                var player = players[actorNumber];
-                players.Remove(actorNumber);
-                OnPlayerRemoved?.Invoke(player);
-            }
-        }
-
-        // Добавляем новых игроков
-        foreach (var kvp in newPlayers)
-        {
-            if (!players.ContainsKey(kvp.Key))
-            {
-                players[kvp.Key] = kvp.Value;
-                OnPlayerAdded?.Invoke(kvp.Value);
-            }
-        }
-
-        Debug.Log($" Синхронизировано игроков: {players.Count}");
     }
 
     public void UpdatePlayerDisplay(PlayerInfo playerInfo)
@@ -238,48 +96,18 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         OnPlayerUpdated?.Invoke(playerInfo);
     }
 
-    // Остальные методы без изменений
-    public PlayerInfo GetPlayerInfo(int actorNumber)
-    {
-        players.TryGetValue(actorNumber, out PlayerInfo info);
-        return info;
-    }
-
     public Dictionary<int, PlayerInfo> GetAllPlayers()
     {
-        Debug.Log($" GetAllPlayers: возвращаю {players.Count} игроков");
-        foreach (var kvp in players)
-        {
-            Debug.Log($"   - ID: {kvp.Key}, Ник: {kvp.Value.Nickname}, IsMine: {kvp.Value.photonView.IsMine}");
-        }
-        return new Dictionary<int, PlayerInfo>(players);
-    }
+        Debug.Log($"GetAllPlayers: возвращаю {players.Count} игроков");
 
-    public string GetPlayerNickname(int actorNumber)
-    {
-        if (players.TryGetValue(actorNumber, out PlayerInfo info))
-        {
-            return info.Nickname;
-        }
-        return "Unknown Player";
-    }
+        Dictionary<int, PlayerInfo> copy = new Dictionary<int, PlayerInfo>(players);
 
-    public int GetPlayerHealth(int actorNumber)
-    {
-        if (players.TryGetValue(actorNumber, out PlayerInfo info))
+        foreach (var kvp in copy)
         {
-            return info.Health;
+            Debug.Log($"   - ID: {kvp.Key}, Ник: {kvp.Value.Nickname}, IsMine: {kvp.Value.photonView?.IsMine}");
         }
-        return 0;
-    }
 
-    public bool GetPlayerAliveStatus(int actorNumber)
-    {
-        if (players.TryGetValue(actorNumber, out PlayerInfo info))
-        {
-            return info.IsAlive;
-        }
-        return false;
+        return copy;
     }
 
     public void PrintAllPlayers()
@@ -289,6 +117,57 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         {
             PlayerInfo player = kvp.Value;
             Debug.Log($"ID: {kvp.Key}, Ник: {player.Nickname}, HP: {player.Health}, Жив: {player.IsAlive}");
+        }
+    }
+
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+    {
+        // Упрощенная синхронизация - менеджер теперь в основном полагается на синхронизацию отдельных PlayerInfo
+        if (stream.IsWriting)
+        {
+            stream.SendNext(players.Count);
+            foreach (var kvp in players)
+            {
+                stream.SendNext(kvp.Key);
+                stream.SendNext(kvp.Value.Nickname);
+                stream.SendNext(kvp.Value.Health);
+                stream.SendNext(kvp.Value.IsAlive);
+            }
+        }
+        else
+        {
+            int count = (int)stream.ReceiveNext();
+            var receivedPlayers = new Dictionary<int, (string nickname, int health, bool alive)>();
+
+            for (int i = 0; i < count; i++)
+            {
+                int actorNumber = (int)stream.ReceiveNext();
+                string nickname = (string)stream.ReceiveNext();
+                int health = (int)stream.ReceiveNext();
+                bool alive = (bool)stream.ReceiveNext();
+
+                receivedPlayers[actorNumber] = (nickname, health, alive);
+            }
+
+            // Обновляем существующих игроков и добавляем недостающих
+            foreach (var kvp in receivedPlayers)
+            {
+                if (players.ContainsKey(kvp.Key))
+                {
+                    // Обновляем данные существующего игрока
+                    var player = players[kvp.Key];
+                    if (player.Nickname != kvp.Value.nickname)
+                    {
+                        player.InitializeRemotePlayer(kvp.Value.nickname, kvp.Value.health, kvp.Value.alive, kvp.Key);
+                    }
+                }
+                else
+                {
+                    // Создаем виртуального игрока для отсутствующего
+                    var virtualPlayer = CreateVirtualPlayer(kvp.Key, kvp.Value.nickname, kvp.Value.health, kvp.Value.alive);
+                    RegisterPlayer(virtualPlayer);
+                }
+            }
         }
     }
 }

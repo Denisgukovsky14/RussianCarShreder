@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Photon.Pun;
@@ -11,27 +12,44 @@ public class MenuManager : MonoBehaviourPunCallbacks
     public TMP_InputField playerNameInput;
     public InputField createInput;
     public InputField joinInput;
+    public TMP_InputField roomPasswordInput; // Новое поле для пароля комнаты
     public Text connectionStatusText;
     public Button createButton;
     public Button joinButton;
     public Button retryButton;
-    public GameObject loadingPanel;
+    public Button searchGameButton; // Новая кнопка поиска игры
+    //public GameObject loadingPanel;
     public Toggle IfOffline;
+
+    [Header("Room Browser UI")]
+    public GameObject roomBrowserPanel; // Панель браузера комнат
+    public ScrollRect roomScrollView; // ScrollView для списка комнат
+    public GameObject roomEntryPrefab; // Префаб элемента комнаты
+    public GameObject passwordPromptPanel; // Панель ввода пароля
+    public InputField passwordInputField; // Поле ввода пароля
+    public Button passwordSubmitButton; // Кнопка подтверждения пароля
+    public Button passwordCancelButton; // Кнопка отмены ввода пароля
 
     private bool isConnected = false;
     private bool isInLobby = false;
     private float lastKeepAliveTime = 0f;
     private const float keepAliveInterval = 10f;
 
+    private int connectionRetries = 0;
+    private const int maxRetries = 3;
+
+    private Dictionary<string, RoomInfo> cachedRoomList = new Dictionary<string, RoomInfo>();
+    private string selectedRoomName = "";
+    private bool selectedRoomHasPassword = false;
+
     void Start()
     {
-
         if (playerNameInput != null && string.IsNullOrEmpty(playerNameInput.text))
         {
             playerNameInput.text = "Player_" + Random.Range(1000, 9999);
         }
 
-        IfOffline.isOn = false; 
+        IfOffline.isOn = false;
         Debug.Log("Initializing Photon...");
 
         // Важные настройки
@@ -45,16 +63,14 @@ public class MenuManager : MonoBehaviourPunCallbacks
         PhotonNetwork.KeepAliveInBackground = 60;
 
         InitializeUI();
-        ConnectToPhoton(); // ТОЛЬКО ОДИН РАЗ!
+        ConnectToPhoton();
     }
 
     void Update()
     {
-        //  УПРОЩЕННЫЙ KEEP-ALIVE - без корутин
         if (PhotonNetwork.IsConnected && Time.time - lastKeepAliveTime > keepAliveInterval)
         {
             lastKeepAliveTime = Time.time;
-            // Просто обновляем время - без сложных операций
         }
     }
 
@@ -67,7 +83,15 @@ public class MenuManager : MonoBehaviourPunCallbacks
         if (createButton == null) { Debug.LogError("createButton is not assigned!"); allGood = false; }
         if (joinButton == null) { Debug.LogError("joinButton is not assigned!"); allGood = false; }
         if (retryButton == null) { Debug.LogError("retryButton is not assigned!"); allGood = false; }
-        if (loadingPanel == null) { Debug.LogError("loadingPanel is not assigned!"); allGood = false; }
+        //if (loadingPanel == null) { Debug.LogError("loadingPanel is not assigned!"); allGood = false; }
+        if (searchGameButton == null) { Debug.LogError("searchGameButton is not assigned!"); allGood = false; }
+        if (roomBrowserPanel == null) { Debug.LogError("roomBrowserPanel is not assigned!"); allGood = false; }
+        if (roomScrollView == null) { Debug.LogError("roomScrollView is not assigned!"); allGood = false; }
+        if (roomEntryPrefab == null) { Debug.LogError("roomEntryPrefab is not assigned!"); allGood = false; }
+        if (passwordPromptPanel == null) { Debug.LogError("passwordPromptPanel is not assigned!"); allGood = false; }
+        if (passwordInputField == null) { Debug.LogError("passwordInputField is not assigned!"); allGood = false; }
+        if (passwordSubmitButton == null) { Debug.LogError("passwordSubmitButton is not assigned!"); allGood = false; }
+        if (passwordCancelButton == null) { Debug.LogError("passwordCancelButton is not assigned!"); allGood = false; }
         return allGood;
     }
 
@@ -75,13 +99,87 @@ public class MenuManager : MonoBehaviourPunCallbacks
     {
         SafeSetButtonInteractable(createButton, false);
         SafeSetButtonInteractable(joinButton, false);
+        SafeSetButtonInteractable(searchGameButton, false);
         SafeSetGameObjectActive(retryButton?.gameObject, false);
-        SafeSetGameObjectActive(loadingPanel, true);
+        //SafeSetGameObjectActive(loadingPanel, true);
+        SafeSetGameObjectActive(roomBrowserPanel, false);
+        SafeSetGameObjectActive(passwordPromptPanel, false);
 
         if (retryButton != null)
             retryButton.onClick.AddListener(ManualReconnect);
 
+        if (searchGameButton != null)
+            searchGameButton.onClick.AddListener(ShowRoomBrowser);
+
+        if (passwordSubmitButton != null)
+            passwordSubmitButton.onClick.AddListener(JoinRoomWithPassword);
+
+        if (passwordCancelButton != null)
+            passwordCancelButton.onClick.AddListener(CancelPasswordJoin);
+
         UpdateConnectionStatus("Initializing...");
+    }
+
+    // ВАЛИДАТОР НИКНЕЙМА
+    public string ValidateAndSanitizeNickname(string nickname)
+    {
+        if (string.IsNullOrEmpty(nickname))
+        {
+            return "Player_" + Random.Range(1000, 9999);
+        }
+
+        // Ограничение длины (3-20 символов)
+        if (nickname.Length > 20)
+        {
+            nickname = nickname.Substring(0, 20);
+            Debug.LogWarning("Nickname too long, truncated to 20 characters");
+        }
+
+        if (nickname.Length < 3)
+        {
+            nickname = "Player_" + Random.Range(1000, 9999);
+            Debug.LogWarning("Nickname too short, using generated name");
+        }
+
+        // Проверка на разрешенные символы (только буквы, цифры, подчеркивания и дефисы)
+        System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(@"^[a-zA-Z0-9_\- ]+$");
+        if (!regex.IsMatch(nickname))
+        {
+            Debug.LogWarning("Nickname contains invalid characters, sanitizing...");
+            // Удаляем запрещенные символы
+            System.Text.RegularExpressions.Regex sanitizeRegex = new System.Text.RegularExpressions.Regex(@"[^a-zA-Z0-9_\- ]");
+            nickname = sanitizeRegex.Replace(nickname, "");
+
+            // Если после очистки строка пустая, генерируем ник
+            if (string.IsNullOrEmpty(nickname.Trim()))
+            {
+                nickname = "Player_" + Random.Range(1000, 9999);
+            }
+        }
+
+        // Убираем пробелы в начале и конце
+        nickname = nickname.Trim();
+
+        // Заменяем множественные пробелы на один
+        while (nickname.Contains("  "))
+        {
+            nickname = nickname.Replace("  ", " ");
+        }
+
+        return nickname;
+    }
+
+    // Метод для проверки никнейма в реальном времени (можно привязать к событию OnValueChanged)
+    public void OnNicknameValueChanged()
+    {
+        if (playerNameInput != null)
+        {
+            string validatedNickname = ValidateAndSanitizeNickname(playerNameInput.text);
+            if (validatedNickname != playerNameInput.text)
+            {
+                playerNameInput.text = validatedNickname;
+            }
+        }
     }
 
     private void SafeSetButtonInteractable(Button button, bool interactable)
@@ -103,89 +201,52 @@ public class MenuManager : MonoBehaviourPunCallbacks
         }
 
         UpdateConnectionStatus("Connecting to Photon...");
-
-        // Автовыбор региона
         PhotonNetwork.PhotonServerSettings.AppSettings.FixedRegion = null;
-
         PhotonNetwork.ConnectUsingSettings();
     }
 
     public override void OnConnectedToMaster()
     {
-        Debug.Log(" Connected to Master Server");
+        Debug.Log("Successfully connected to Master Server in region: " + PhotonNetwork.CloudRegion);
+        connectionRetries = 0;
         isConnected = true;
         UpdateConnectionStatus("Connected! Joining lobby...");
-
         PhotonNetwork.JoinLobby();
     }
 
     public override void OnJoinedLobby()
     {
-        Debug.Log(" Joined Lobby");
+        Debug.Log("Joined Lobby");
         isInLobby = true;
         UpdateConnectionStatus("Ready to create or join rooms!");
 
         SafeSetButtonInteractable(createButton, true);
         SafeSetButtonInteractable(joinButton, true);
-        SafeSetGameObjectActive(loadingPanel, false);
+        SafeSetButtonInteractable(searchGameButton, true);
+        //SafeSetGameObjectActive(loadingPanel, false);
         SafeSetGameObjectActive(retryButton?.gameObject, false);
     }
 
-    public override void OnDisconnected(DisconnectCause cause)
-    {
-
-        try
-        {
-            GameObject.FindWithTag("Platform").GetComponent<DefaultStatics>().Counter -= 1;
-        }
-        catch
-        {
-            Debug.Log(" Не найдено ");
-        }
-
-        Debug.Log($" Disconnected: {cause}");
-        isConnected = false;
-        isInLobby = false;
-
-        SafeSetButtonInteractable(createButton, false);
-        SafeSetButtonInteractable(joinButton, false);
-        SafeSetGameObjectActive(loadingPanel, false);
-
-        UpdateConnectionStatus($"Disconnected: {cause}");
-        SafeSetGameObjectActive(retryButton?.gameObject, true);
-    }
-
-    private void CreateOfflineRoom()
-    {
-        string roomName = createInput != null ? createInput.text.Trim() : "";
-        if (string.IsNullOrEmpty(roomName))
-        {
-            roomName = "OfflineRoom_" + Random.Range(1000, 9999);
-            if (createInput != null) createInput.text = roomName;
-        }
-
-        UpdateConnectionStatus("Creating offline room...");
-        PhotonNetwork.CreateRoom(roomName);
-
-        AnalyticsManager.Instance.TrackLevelEvent(2, "start");
-    }
-
+    // ОБНОВЛЕННЫЙ МЕТОД ДЛЯ СОЗДАНИЯ КОМНАТЫ С ПАРОЛЕМ
     public void CreateRoom()
     {
+        // Валидация никнейма
         if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
         {
-            PhotonNetwork.NickName = playerNameInput.text;
-            Debug.Log($" Ник установлен: {PhotonNetwork.NickName}");
+            string validatedNickname = ValidateAndSanitizeNickname(playerNameInput.text);
+            PhotonNetwork.NickName = validatedNickname;
+            playerNameInput.text = validatedNickname; // Обновляем поле ввода
+            Debug.Log($"Никнейм установлен: {PhotonNetwork.NickName}");
         }
         else
         {
             PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
-            Debug.Log($" Случайный ник: {PhotonNetwork.NickName}");
+            Debug.Log($"Случайный ник: {PhotonNetwork.NickName}");
         }
 
-        if (IfOffline)
+        if (IfOffline.isOn)
         {
-            OnDisconnected(new DisconnectCause());
+            OnDisconnected(DisconnectCause.None);
             CreateOfflineRoom();
             return;
         }
@@ -203,37 +264,181 @@ public class MenuManager : MonoBehaviourPunCallbacks
             if (createInput != null) createInput.text = roomName;
         }
 
+        string password = roomPasswordInput != null ? roomPasswordInput.text.Trim() : "";
+        bool hasPassword = !string.IsNullOrEmpty(password);
+
         UpdateConnectionStatus("Creating room...");
         SafeSetButtonInteractable(createButton, false);
         SafeSetButtonInteractable(joinButton, false);
-        SafeSetGameObjectActive(loadingPanel, true);
+        SafeSetButtonInteractable(searchGameButton, false);
+        //SafeSetGameObjectActive(loadingPanel, true);
 
-        //  ПРОСТЫЕ НАСТРОЙКИ КОМНАТЫ
+        // Настройки комнаты с возможностью пароля
         RoomOptions roomOptions = new RoomOptions
         {
             MaxPlayers = 4,
             IsVisible = true,
-            IsOpen = true
+            IsOpen = true,
+            CustomRoomProperties = new ExitGames.Client.Photon.Hashtable()
         };
+
+        // Добавляем информацию о пароле в свойства комнаты
+        if (hasPassword)
+        {
+            roomOptions.CustomRoomProperties.Add("password", password);
+            roomOptions.CustomRoomProperties.Add("hasPassword", true);
+        }
+        else
+        {
+            roomOptions.CustomRoomProperties.Add("hasPassword", false);
+        }
+
+        // Устанавливаем свойства, которые будут видны в лобби
+        roomOptions.CustomRoomPropertiesForLobby = new string[] { "hasPassword" };
 
         PhotonNetwork.CreateRoom(roomName, roomOptions);
     }
 
-    public void JoinRoom()
+    // БРАУЗЕР КОМНАТ
+    public void ShowRoomBrowser()
     {
+        if (!isInLobby)
+        {
+            UpdateConnectionStatus("Not in lobby! Please wait...");
+            return;
+        }
 
+        SafeSetGameObjectActive(roomBrowserPanel, true);
+        UpdateRoomList();
+    }
+
+    public void HideRoomBrowser()
+    {
+        SafeSetGameObjectActive(roomBrowserPanel, false);
+    }
+
+    private void UpdateRoomList()
+    {
+        // Очищаем существующий список
+        foreach (Transform child in roomScrollView.content.transform)
+        {
+            Destroy(child.gameObject);
+        }
+
+        // Создаем элементы для каждой комнаты
+        foreach (var roomInfo in cachedRoomList.Values)
+        {
+            GameObject roomEntry = Instantiate(roomEntryPrefab, roomScrollView.content.transform);
+            RoomEntryUI entryUI = roomEntry.GetComponent<RoomEntryUI>();
+
+            if (entryUI != null)
+            {
+                bool hasPassword = roomInfo.CustomProperties.ContainsKey("hasPassword") &&
+                                  (bool)roomInfo.CustomProperties["hasPassword"];
+
+                entryUI.Setup(roomInfo.Name, roomInfo.PlayerCount, roomInfo.MaxPlayers, hasPassword);
+
+                // Добавляем обработчик двойного клика
+                Button roomButton = roomEntry.GetComponent<Button>();
+                if (roomButton != null)
+                {
+                    roomButton.onClick.AddListener(() => OnRoomDoubleClick(roomInfo.Name, hasPassword));
+                }
+            }
+        }
+    }
+
+    private void OnRoomDoubleClick(string roomName, bool hasPassword)
+    {
+        selectedRoomName = roomName;
+        selectedRoomHasPassword = hasPassword;
+
+        if (hasPassword)
+        {
+            // Показываем диалог ввода пароля
+            ShowPasswordPrompt();
+        }
+        else
+        {
+            // Присоединяемся напрямую
+            JoinSelectedRoom("");
+        }
+    }
+
+    private void ShowPasswordPrompt()
+    {
+        SafeSetGameObjectActive(passwordPromptPanel, true);
+        if (passwordInputField != null)
+        {
+            passwordInputField.text = "";
+        }
+    }
+
+    private void HidePasswordPrompt()
+    {
+        SafeSetGameObjectActive(passwordPromptPanel, false);
+    }
+
+    private void JoinRoomWithPassword()
+    {
+        string password = passwordInputField != null ? passwordInputField.text.Trim() : "";
+        JoinSelectedRoom(password);
+        HidePasswordPrompt();
+    }
+
+    private void CancelPasswordJoin()
+    {
+        HidePasswordPrompt();
+        selectedRoomName = "";
+    }
+
+    private void JoinSelectedRoom(string password)
+    {
+        // Валидация никнейма
         if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
         {
-            PhotonNetwork.NickName = playerNameInput.text;
-            Debug.Log($" Ник установлен: {PhotonNetwork.NickName}");
+            string validatedNickname = ValidateAndSanitizeNickname(playerNameInput.text);
+            PhotonNetwork.NickName = validatedNickname;
+            playerNameInput.text = validatedNickname;
+            Debug.Log($"Никнейм установлен: {PhotonNetwork.NickName}");
         }
         else
         {
             PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
-            Debug.Log($" Случайный ник: {PhotonNetwork.NickName}");
+            Debug.Log($"Случайный никнейм: {PhotonNetwork.NickName}");
         }
 
-        if (IfOffline) { 
+        if (!isInLobby)
+        {
+            UpdateConnectionStatus("Not in lobby! Please wait...");
+            return;
+        }
+
+        UpdateConnectionStatus("Joining room...");
+        SafeSetButtonInteractable(createButton, false);
+        SafeSetButtonInteractable(joinButton, false);
+        SafeSetButtonInteractable(searchGameButton, false);
+        //SafeSetGameObjectActive(loadingPanel, true);
+
+        // Здесь можно добавить дополнительную проверку пароля при присоединении
+        PhotonNetwork.JoinRoom(selectedRoomName);
+    }
+
+    // ОБНОВЛЕННЫЙ МЕТОД ДЛЯ ПРИСОЕДИНЕНИЯ ПО ИМЕНИ
+    public void JoinRoom()
+    {
+        // Валидация никнейма
+        if (playerNameInput != null && !string.IsNullOrEmpty(playerNameInput.text))
+        {
+            string validatedNickname = ValidateAndSanitizeNickname(playerNameInput.text);
+            PhotonNetwork.NickName = validatedNickname;
+            playerNameInput.text = validatedNickname;
+            Debug.Log($"Никнейм установлен: {PhotonNetwork.NickName}");
+        }
+        else
+        {
+            PhotonNetwork.NickName = "Player_" + Random.Range(1000, 9999);
+            Debug.Log($"Случайный никнейм: {PhotonNetwork.NickName}");
         }
 
         if (!isInLobby)
@@ -252,38 +457,106 @@ public class MenuManager : MonoBehaviourPunCallbacks
         UpdateConnectionStatus("Joining room...");
         SafeSetButtonInteractable(createButton, false);
         SafeSetButtonInteractable(joinButton, false);
-        SafeSetGameObjectActive(loadingPanel, true);
+        SafeSetButtonInteractable(searchGameButton, false);
+        //SafeSetGameObjectActive(loadingPanel, true);
 
         PhotonNetwork.JoinRoom(roomName);
+    }
+
+    // ОБНОВЛЕНИЕ СПИСКА КОМНАТ
+    public override void OnRoomListUpdate(List<RoomInfo> roomList)
+    {
+        Debug.Log($"Room list updated: {roomList.Count} rooms");
+
+        // Обновляем кэшированный список комнат
+        foreach (RoomInfo roomInfo in roomList)
+        {
+            if (roomInfo.RemovedFromList)
+            {
+                cachedRoomList.Remove(roomInfo.Name);
+            }
+            else
+            {
+                cachedRoomList[roomInfo.Name] = roomInfo;
+            }
+        }
+
+        // Если браузер комнат открыт, обновляем отображение
+        if (roomBrowserPanel != null && roomBrowserPanel.activeInHierarchy)
+        {
+            UpdateRoomList();
+        }
+    }
+
+    // ОСТАЛЬНЫЕ МЕТОДЫ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ
+    private void CreateOfflineRoom()
+    {
+        string roomName = createInput != null ? createInput.text.Trim() : "";
+        if (string.IsNullOrEmpty(roomName))
+        {
+            roomName = "OfflineRoom_" + Random.Range(1000, 9999);
+            if (createInput != null) createInput.text = roomName;
+        }
+
+        UpdateConnectionStatus("Creating offline room...");
+        PhotonNetwork.CreateRoom(roomName);
+
+        //AnalyticsManager.Instance.TrackLevelEvent(2, "start");
+    }
+
+    public override void OnDisconnected(DisconnectCause cause)
+    {
+        Debug.Log($"Disconnected: {cause}");
+
+        if (connectionRetries < maxRetries)
+        {
+            connectionRetries++;
+            UpdateConnectionStatus($"Reconnecting... Attempt {connectionRetries}/{maxRetries}");
+            Invoke("ConnectToPhoton", 2f);
+        }
+        else
+        {
+            UpdateConnectionStatus($"Failed to connect after {maxRetries} attempts");
+        }
+
+        isConnected = false;
+        isInLobby = false;
+
+        SafeSetButtonInteractable(createButton, false);
+        SafeSetButtonInteractable(joinButton, false);
+        SafeSetButtonInteractable(searchGameButton, false);
+        //SafeSetGameObjectActive(loadingPanel, false);
+
+        UpdateConnectionStatus($"Disconnected: {cause}");
+        SafeSetGameObjectActive(retryButton?.gameObject, true);
+
+        try
+        {
+            GameObject.FindWithTag("Platform").GetComponent<DefaultStatics>().Counter -= 1;
+        }
+        catch
+        {
+            Debug.Log("Не найдено");
+        }
     }
 
     public void ManualReconnect()
     {
         UpdateConnectionStatus("Reconnecting...");
         SafeSetGameObjectActive(retryButton?.gameObject, false);
-        SafeSetGameObjectActive(loadingPanel, true);
+        //SafeSetGameObjectActive(loadingPanel, true);
         ConnectToPhoton();
-    }
-
-    public void OnConnectedToServer( DisconnectCause cause ) 
-    {
-        Debug.Log(cause);
     }
 
     public override void OnCreatedRoom()
     {
-        Debug.Log(" Room created successfully!");
+        Debug.Log("Room created successfully!");
         UpdateConnectionStatus("Room created! Waiting for players...");
-
-        //  УБИРАЕМ КОРУТИНУ - просто ждем игроков
-        // Автоматически перейдем в игру когда будет достаточно игроков
-        // или через какое-то время
         StartCoroutine(WaitForPlayersOrStart());
     }
 
     private IEnumerator WaitForPlayersOrStart()
     {
-        // Ждем максимум 30 секунд перед стартом
         float waitTime = 30f;
         float elapsed = 0f;
 
@@ -291,7 +564,6 @@ public class MenuManager : MonoBehaviourPunCallbacks
         {
             UpdateConnectionStatus($"Waiting for players... ({Mathf.RoundToInt(waitTime - elapsed)}s)");
 
-            // Если есть 2+ игрока, начинаем сразу
             if (PhotonNetwork.CurrentRoom.PlayerCount >= 2 && PhotonNetwork.IsMasterClient)
             {
                 StartGame();
@@ -302,7 +574,6 @@ public class MenuManager : MonoBehaviourPunCallbacks
             yield return new WaitForSeconds(1f);
         }
 
-        // Если время вышло, начинаем с текущим количеством игроков
         if (PhotonNetwork.InRoom && PhotonNetwork.IsMasterClient)
         {
             StartGame();
@@ -311,37 +582,46 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     private void StartGame()
     {
-        //AnalyticsManager.Instance.TrackLevelEvent(2, "start");
         UpdateConnectionStatus("Starting game...");
         PhotonNetwork.LoadLevel("GAME");
     }
 
     public override void OnCreateRoomFailed(short returnCode, string message)
     {
-        Debug.LogError($" Room creation failed: {message}");
+        Debug.LogError($"Room creation failed: {message}");
         UpdateConnectionStatus($"Create failed: {message}");
 
         SafeSetButtonInteractable(createButton, true);
         SafeSetButtonInteractable(joinButton, true);
-        SafeSetGameObjectActive(loadingPanel, false);
+        SafeSetButtonInteractable(searchGameButton, true);
+        //SafeSetGameObjectActive(loadingPanel, false);
     }
 
     public override void OnJoinRoomFailed(short returnCode, string message)
     {
-        Debug.LogError($" Join room failed: {message}");
+        Debug.LogError($"Join room failed: {message}");
         UpdateConnectionStatus($"Join failed: {message}");
 
         SafeSetButtonInteractable(createButton, true);
         SafeSetButtonInteractable(joinButton, true);
-        SafeSetGameObjectActive(loadingPanel, false);
+        SafeSetButtonInteractable(searchGameButton, true);
+        //SafeSetGameObjectActive(loadingPanel, false);
     }
 
     public override void OnJoinedRoom()
     {
-        Debug.Log(" Joined room successfully!");
+        Debug.Log("Joined room successfully!");
         UpdateConnectionStatus($"Joined room: {PhotonNetwork.CurrentRoom.Name}");
 
-        //  ПРОСТАЯ ЗАГРУЗКА СЦЕНЫ
+        if (PhotonNetwork.InRoom)
+        {
+            Debug.Log($"Players in room: {PhotonNetwork.CurrentRoom.PlayerCount}");
+            foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
+            {
+                Debug.Log($" - {player.NickName} (Actor: {player.ActorNumber})");
+            }
+        }
+
         if (PhotonNetwork.IsMasterClient)
         {
             StartCoroutine(StartGameWithDelay());
@@ -350,7 +630,7 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
     private IEnumerator StartGameWithDelay()
     {
-        yield return new WaitForSeconds(3f); // Короткая задержка
+        yield return new WaitForSeconds(3f);
         PhotonNetwork.LoadLevel("GAME");
     }
 
@@ -359,7 +639,6 @@ public class MenuManager : MonoBehaviourPunCallbacks
         Debug.Log($"Player {newPlayer.NickName} joined the room");
         UpdateConnectionStatus($"Players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
 
-        // Если достаточно игроков, начинаем игру
         if (PhotonNetwork.CurrentRoom.PlayerCount >= 2 && PhotonNetwork.IsMasterClient)
         {
             StartGame();
@@ -373,10 +652,4 @@ public class MenuManager : MonoBehaviourPunCallbacks
 
         Debug.Log($"[MenuManager] {status}");
     }
-
-    //  ОСТОРОЖНО: Убираем проблемные методы если они вызывают краш
-    /*
-    void OnApplicationFocus(bool hasFocus) { }
-    void OnApplicationPause(bool pauseStatus) { }
-    */
 }

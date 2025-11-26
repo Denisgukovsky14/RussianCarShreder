@@ -87,11 +87,13 @@ namespace RootMotion
 
         private void Start()
         {
+            //Physics.IgnoreLayerCollision(LayerMask.NameToLayer("TransparentFX"), LayerMask.NameToLayer("Default"));
+
             // Находим локального игрока
             GameObject localPlayer = FindLocalPlayer();
             if (localPlayer != null)
             {
-                target = localPlayer.transform.parent;
+                target = localPlayer.transform.root ;
                 Debug.Log("Camera target set to: " + localPlayer.name);
             }
 

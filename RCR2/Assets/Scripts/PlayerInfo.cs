@@ -12,8 +12,8 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
     private int _actorNumber;
 
     public int ActorNumber => _actorNumber;
-    //  СВОЙСТВА ДЛЯ ДОСТУПА ИЗВНЕ
     public string Nickname => _nickname.Value;
+
     public int Health
     {
         get => _health.Value;
@@ -25,56 +25,60 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
         set { if (photonView.IsMine) _isAlive.Value = value; }
     }
 
-    //public NetVar<string> playerNickname => _nickname;
-    //public NetVar<int> playerHealth => _health;
-    //public NetVar<bool> isAlive => _isAlive;
-
-    public void MyDeath(string nickname)
-    {
-        if (photonView.IsMine)
-        {
-            Health = 0;
-            IsAlive = false;
-        }
-    }
+    private bool _isInitialized = false;
 
     void Start()
     {
-        // Устанавливаем данные для локального игрока
+        _actorNumber = photonView.OwnerActorNr;
+
         if (photonView.IsMine)
         {
-            
             _nickname.Value = PhotonNetwork.NickName ?? "Player_" + photonView.OwnerActorNr;
-            _actorNumber = photonView.OwnerActorNr;
             _health.Value = 100;
             _isAlive.Value = true;
 
-            Debug.Log($" Игрок создан: {_nickname.Value}, HP: {_health.Value}");
-            nick.text = _nickname.Value;
+            Debug.Log($"Игрок инициализирован: {_nickname.Value}, HP: {_health.Value}");
         }
 
-        //  ПОДПИСКА НА СОБЫТИЯ NETVAR
+        // Подписка на события NetVar
         _health.OnValueChanged += OnHealthChanged;
         _isAlive.OnValueChanged += OnAliveStatusChanged;
+        _nickname.OnValueChanged += OnNicknameChanged;
 
-        // Регистрируем в менеджере
-        if (PlayerInfoManager.Instance != null)
+        // Регистрация в менеджере
+        RegisterWithManager();
+
+        _isInitialized = true;
+
+        // Принудительное обновление отображения
+        UpdateNicknameDisplay();
+        UpdatePlayerUI();
+    }
+
+    private void OnNicknameChanged(string oldNickname, string newNickname)
+    {
+        Debug.Log($"Никнейм изменен: {oldNickname} -> {newNickname}");
+        UpdateNicknameDisplay();
+        UpdatePlayerUI();
+    }
+
+    private void UpdateNicknameDisplay()
+    {
+        if (nick != null)
         {
-            PlayerInfoManager.Instance.RegisterPlayer(this);
+            nick.text = _nickname.Value;
+            Debug.Log($"Обновление отображения ника: {_nickname.Value}");
         }
         else
         {
-            Debug.LogError(" PlayerInfoManager.Instance is null!");
+            Debug.LogWarning("TMP_Text компонент 'nick' не назначен!");
         }
-
-        Debug.Log(" PlayerInfo инициализирован!");
     }
 
     private void OnHealthChanged(int oldHealth, int newHealth)
     {
-        Debug.Log($" Здоровье: {oldHealth} -> {newHealth}");
+        Debug.Log($"Здоровье изменилось: {oldHealth} -> {newHealth}");
 
-        // Проверяем смерть
         if (newHealth <= 0 && oldHealth > 0)
         {
             _isAlive.Value = false;
@@ -85,7 +89,7 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
 
     private void OnAliveStatusChanged(bool oldStatus, bool newStatus)
     {
-        Debug.Log($" Статус: {oldStatus} -> {newStatus}");
+        Debug.Log($"Статус жизни изменился: {oldStatus} -> {newStatus}");
 
         if (!newStatus)
         {
@@ -97,8 +101,7 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
 
     private void OnPlayerDeath()
     {
-        Debug.Log($" Игрок {_nickname.Value} умер!");
-        // Дополнительная логика смерти...
+        Debug.Log($"Игрок {_nickname.Value} умер!");
     }
 
     private void UpdatePlayerUI()
@@ -106,7 +109,19 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
         PlayerInfoManager.Instance?.UpdatePlayerDisplay(this);
     }
 
-    //  ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ ИЗМЕНЕНИЯ ДАННЫХ
+    private void RegisterWithManager()
+    {
+        if (PlayerInfoManager.Instance != null)
+        {
+            PlayerInfoManager.Instance.RegisterPlayer(this);
+        }
+        else
+        {
+            Debug.LogWarning("PlayerInfoManager.Instance is null, повторная попытка...");
+            Invoke(nameof(RegisterWithManager), 0.1f);
+        }
+    }
+
     public void SetNickname(string nickname)
     {
         if (photonView.IsMine)
@@ -117,7 +132,7 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
     {
         if (photonView.IsMine && _isAlive.Value)
         {
-            _health.Value -= damage;
+            _health.Value = Mathf.Max(0, _health.Value - damage);
         }
     }
 
@@ -129,21 +144,47 @@ public class PlayerInfo : MonoBehaviourPun, IPunObservable
         }
     }
 
-    //  СИНХРОНИЗАЦИЯ ЧЕРЕЗ PHOTON
     public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
     {
-        _nickname.Serialize(stream);
-        _health.Serialize(stream);
-        _isAlive.Serialize(stream);
+        if (stream.IsWriting)
+        {
+            stream.SendNext(_nickname.Value);
+            stream.SendNext(_health.Value);
+            stream.SendNext(_isAlive.Value);
+        }
+        else
+        {
+            string receivedNickname = (string)stream.ReceiveNext();
+            int receivedHealth = (int)stream.ReceiveNext();
+            bool receivedAlive = (bool)stream.ReceiveNext();
+
+            // Обновляем значения только если они изменились
+            if (_nickname.Value != receivedNickname)
+            {
+                _nickname.Value = receivedNickname;
+            }
+
+            _health.Value = receivedHealth;
+            _isAlive.Value = receivedAlive;
+
+            // Принудительное обновление при получении данных
+            if (!_isInitialized)
+            {
+                UpdateNicknameDisplay();
+                UpdatePlayerUI();
+            }
+        }
     }
 
-    // В PlayerInfo.cs добавь:
     public void InitializeRemotePlayer(string nickname, int health, bool alive, int actorNumber)
     {
         _nickname.Value = nickname;
         _health.Value = health;
         _isAlive.Value = alive;
         _actorNumber = actorNumber;
+
+        UpdateNicknameDisplay();
+        UpdatePlayerUI();
     }
 
     void OnDestroy()
