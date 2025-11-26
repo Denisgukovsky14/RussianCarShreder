@@ -1,11 +1,13 @@
 using Photon.Pun;
 using System;
+using UnityEngine;
 
 [System.Serializable]
 public class NetVar<T>
 {
-    private T _value;
-    private T _lastSentValue;
+    [SerializeField] private T _value;
+    private T _lastSyncedValue;
+    private bool _forceSync;
 
     public T Value
     {
@@ -16,6 +18,7 @@ public class NetVar<T>
             {
                 T oldValue = _value;
                 _value = value;
+                _forceSync = true;
                 OnValueChanged?.Invoke(oldValue, value);
             }
         }
@@ -23,24 +26,27 @@ public class NetVar<T>
 
     public event Action<T, T> OnValueChanged;
 
-    // йНМЯРПСЙРНП
     public NetVar(T initialValue = default(T))
     {
         _value = initialValue;
-        _lastSentValue = _value;
+        _lastSyncedValue = _value;
     }
 
-    // лЕРНДШ ДКЪ ЯХМУПНМХГЮЖХХ
+    public bool ShouldSync()
+    {
+        return _forceSync || !Equals(_value, _lastSyncedValue);
+    }
+
     public void Serialize(PhotonStream stream)
     {
         if (stream.IsWriting)
         {
-            //  опнярн нропюбкъел рейсыее гмювемхе
             stream.SendNext(_value);
+            _lastSyncedValue = _value;
+            _forceSync = false;
         }
         else
         {
-            //  опнярн вхрюел аег кчашу опнбепнй
             try
             {
                 T receivedValue = (T)stream.ReceiveNext();
@@ -48,13 +54,19 @@ public class NetVar<T>
                 {
                     T oldValue = _value;
                     _value = receivedValue;
+                    _lastSyncedValue = _value;
                     OnValueChanged?.Invoke(oldValue, receivedValue);
                 }
             }
-            catch
+            catch (Exception e)
             {
-                //  хцмнпхпсел ньхайх - Photon яюл пюгаеп╗ряъ
+                Debug.LogError($"NetVar deserialization error: {e}");
             }
         }
+    }
+
+    public void ForceSync()
+    {
+        _forceSync = true;
     }
 }

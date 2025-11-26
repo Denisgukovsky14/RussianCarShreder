@@ -282,6 +282,12 @@ public class PlayerInfoManager : MonoBehaviourPun, IPunObservable
         return false;
     }
 
+    public PlayerInfo GetPlayer(int actorNumber)
+    {
+        players.TryGetValue(actorNumber, out PlayerInfo playerInfo);
+        return playerInfo;
+    }
+
     public void PrintAllPlayers()
     {
         Debug.Log($"=== Всего игроков: {PlayerCount} ===");
